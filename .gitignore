@@ -1,0 +1,63 @@
+# ── Python ────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# ── Packaging / build ─────────────────────────────────────────────────
+build/
+dist/
+sdist/
+wheels/
+*.egg-info/
+*.egg
+.eggs/
+MANIFEST
+
+# ── Virtual environments ──────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ── Testing / coverage ────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+
+# ── Type checking / linting caches ────────────────────────────────────
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+
+# ── Editors / OS ──────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+
+# ── Jupyter ───────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+
+# ── Data (never commit datasets; the store lives in ~/.imbdata) ───────
+data/
+raw/
+processed/
+*.parquet
+*.csv
+*.zip
+*.gz
+*.tar
+*.7z
+manifest.json
+
+# ── Credentials ───────────────────────────────────────────────────────
+kaggle.json
+.env

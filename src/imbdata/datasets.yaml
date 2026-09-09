@@ -1,0 +1,694 @@
+# CIPA Extended — Dataset Configuration
+# Each entry defines download source, preprocessing, and binarization for one dataset.
+# Used by: src/download_datasets.py, src/preprocess.py, src/load_dataset.py
+
+# ═══════════════════════════════════════════════════════════════
+# DOMAIN 1: FINANCIAL FRAUD
+# ═══════════════════════════════════════════════════════════════
+
+credit_card_fraud:
+  domain: financial_fraud
+  status: existing  # from COMIA 2026
+  source: kaggle
+  url: https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud
+  filename: creditcard.csv
+  target_column: Class
+  minority_value: 1
+  features_drop: []
+  encoding: none  # all numeric (PCA-transformed)
+  imputation: none  # no missing values
+  notes: "PCA-transformed V1–V28. Only Time and Amount are original."
+
+paysim:
+  domain: financial_fraud
+  status: existing
+  source: kaggle
+  url: https://www.kaggle.com/datasets/ealaxi/paysim1
+  filename: PS_20174392719_1491204439457_log.csv
+  target_column: isFraud
+  minority_value: 1
+  features_drop: [nameOrig, nameDest, isFlaggedFraud]
+  encoding:
+    type: onehot  # column 'type' has 5 categories
+    columns: [type]
+  imputation: none
+  temporal_column: step
+  notes: "Synthetic. Only TRANSFER and CASH_OUT have fraud. step = temporal ordering."
+
+ieee_cis_fraud:
+  domain: financial_fraud
+  status: existing
+  source: kaggle
+  url: https://www.kaggle.com/c/ieee-fraud-detection
+  filename: [train_transaction.csv, train_identity.csv]
+  target_column: isFraud
+  minority_value: 1
+  features_drop: [TransactionID]
+  encoding:
+    type: onehot_or_ordinal  # mixed categorical columns
+    columns: [ProductCD, card4, card6, P_emaildomain, R_emaildomain, M1-M9, DeviceType, DeviceInfo, id_12-id_38]
+  imputation: median  # high percentage of missing values
+  temporal_column: TransactionDT
+  notes: "Join Transaction + Identity on TransactionID. 434 features after join. High missingness."
+
+elliptic_bitcoin:
+  domain: financial_fraud
+  status: new
+  source: kaggle
+  url: https://www.kaggle.com/datasets/ellipticco/elliptic-data-set
+  filename: [elliptic_txs_features.csv, elliptic_txs_classes.csv, elliptic_txs_edgelist.csv]
+  target_column: class
+  # Verified against elliptic_txs_classes.csv: class 1 has 4,545 rows (illicit)
+  # and class 2 has 42,019 (licit). The original comment had the mapping
+  # inverted, which produced an IR of 0.1:1 instead of 9.2:1.
+  minority_value: "1"  # 1=illicit, 2=licit, unknown=dropped
+  majority_value: "2"
+  drop_unlabeled: true  # drop class="unknown"
+  features_drop: []  # 165 features, use all
+  encoding: none  # all numeric
+  imputation: none
+  temporal_column: time_step  # 49 timesteps
+  notes: "Use only labeled nodes (46,564 of 203,769). Ignore graph structure for CIPA."
+
+baf:
+  domain: financial_fraud
+  status: new
+  source: kaggle
+  url: https://www.kaggle.com/datasets/sgpjesus/bank-account-fraud-dataset-neurips-2022
+  github: https://github.com/feedzai/bank-account-fraud
+  filename: Base.csv  # Use the Base variant
+  target_column: fraud_bool
+  minority_value: 1
+  features_drop: []
+  encoding:
+    type: onehot
+    columns: [payment_type, employment_status, housing_status, source, device_os]
+  imputation: none
+  temporal_column: month  # 8 months, Feb–Sep
+  notes: "NeurIPS 2022 benchmark. Base variant. 1M records. Temporal drift built in."
+
+# ═══════════════════════════════════════════════════════════════
+# DOMAIN 2: MEDICINE & CLINICAL
+# ═══════════════════════════════════════════════════════════════
+
+breast_cancer_wisconsin:
+  domain: medicine
+  status: existing
+  source: uci
+  url: https://archive.ics.uci.edu/dataset/17/breast+cancer+wisconsin+diagnostic
+  filename: wdbc.data
+  target_column: diagnosis
+  minority_value: M  # Malignant
+  majority_value: B  # Benign
+  features_drop: [id]
+  encoding: none
+  imputation: none
+  download:
+    engine: http
+    files:
+      - url: https://archive.ics.uci.edu/static/public/17/breast+cancer+wisconsin+diagnostic.zip
+        extract: true
+        expect: [wdbc.data]
+
+pima_diabetes:
+  domain: medicine
+  status: existing
+  source: kaggle
+  url: https://www.kaggle.com/datasets/uciml/pima-indians-diabetes-database
+  filename: diabetes.csv
+  target_column: Outcome
+  minority_value: 1
+  features_drop: []
+  encoding: none
+  imputation: none  # zeros are biologically implausible but standard practice is to keep them
+  notes: "Zero values in Glucose, BloodPressure, SkinThickness, Insulin, BMI are likely encoded missing.
+    The declared Kaggle slug returns 403 and no longer appears in Kaggle search, i.e. the dataset was
+    delisted or restricted by its owner; this is not a credentials problem (other Kaggle datasets in
+    this registry download fine with the same token). The declared download.mirror is used instead and
+    yields the same N=768 with 500/268."
+  download:
+    engine: kaggle
+    slug: uciml/pima-indians-diabetes-database
+    expect: [diabetes.csv]
+    mirror:
+      engine: http
+      files:
+        - url: https://raw.githubusercontent.com/plotly/datasets/master/diabetes.csv
+          filename: diabetes.csv
+
+tcga_brca:
+  domain: medicine
+  status: existing
+  source: linkedomics
+  url: https://www.linkedomics.org/data_download/TCGA-BRCA/
+  filename: Human__TCGA_BRCA__UNC__RNAseq__HiSeq_RNA__01_28_2016__BI__Gene__Firehose_RSEM_log2.cct.gz
+  target_column: pam50_subtype  # derived from clinical data
+  minority_value: Basal
+  binarization: basal_vs_rest  # Basal-like (minority) vs. all other PAM50 subtypes
+  features_drop: []
+  encoding: none  # gene expression values are continuous
+  imputation: none
+  dimensionality_filter:
+    method: variance
+    top_k: 5000  # for distance-based CIPA measures (D₂, D₃, D₄, D₇)
+  variants: [full]  # tcga_brca.parquet = top-5,000; tcga_brca__full.parquet = all genes
+  clinical_filename: Human__TCGA_BRCA__MS__Clinical__Clinical__01_28_2016__BI__Clinical__Firehose.tsi
+  notes: "d_full ~20,500 used for D₁, D₅, D₆. d_filtered=5,000 for D₂, D₃, D₄, D₇.
+    The LinkedOmics matrix is already log2(RSEM+1)-transformed (see the file name),
+    so preprocessing does not re-apply the transform."
+  download:
+    engine: http
+    files:
+      - url: https://www.linkedomics.org/data_download/TCGA-BRCA/Human__TCGA_BRCA__UNC__RNAseq__HiSeq_RNA__01_28_2016__BI__Gene__Firehose_RSEM_log2.cct.gz
+        extract: true
+        expect: [Human__TCGA_BRCA__UNC__RNAseq__HiSeq_RNA__01_28_2016__BI__Gene__Firehose_RSEM_log2.cct]
+      - url: https://www.linkedomics.org/data_download/TCGA-BRCA/Human__TCGA_BRCA__MS__Clinical__Clinical__01_28_2016__BI__Clinical__Firehose.tsi
+        filename: Human__TCGA_BRCA__MS__Clinical__Clinical__01_28_2016__BI__Clinical__Firehose.tsi
+
+mammography:
+  domain: medicine
+  status: new
+  source: openml
+  url: https://www.openml.org/d/310
+  openml_id: 310
+  target_column: class
+  minority_value: "1"  # calcification present
+  features_drop: []
+  encoding: none
+  imputation: none
+  notes: "6 features extracted from mammogram images. IR=42:1."
+  download:
+    engine: openml
+
+# ═══════════════════════════════════════════════════════════════
+# DOMAIN 3: CYBERSECURITY
+# ═══════════════════════════════════════════════════════════════
+
+nsl_kdd:
+  domain: cybersecurity
+  status: existing
+  source: unb
+  url: https://www.unb.ca/cic/datasets/nsl.html
+  filename: [KDDTrain+.txt, KDDTest+.txt]
+  target_column: label
+  binarization: normal_vs_attack  # Normal (0) vs. all attack types (1)
+  features_drop: [difficulty_level]
+  encoding:
+    type: onehot
+    columns: [protocol_type, service, flag]
+  imputation: none
+  download:
+    engine: github  # the UNB portal is form-gated; this mirror serves the same files
+    files:
+      - url: https://raw.githubusercontent.com/defcom17/NSL_KDD/master/KDDTrain%2B.txt
+        filename: KDDTrain+.txt
+      - url: https://raw.githubusercontent.com/defcom17/NSL_KDD/master/KDDTest%2B.txt
+        filename: KDDTest+.txt
+
+cic_ids_2017:
+  domain: cybersecurity
+  status: existing
+  source: cic_unb
+  url: https://www.unb.ca/cic/datasets/ids-2017.html
+  filename: "*.csv"  # multiple CSV files, one per day
+  target_column: " Label"  # note leading space in original
+  binarization: normal_vs_attack  # BENIGN (0) vs. all attacks (1)
+  features_drop: []
+  encoding: none  # 78 numeric flow features
+  imputation: drop_inf  # contains Inf values in some flow features
+  notes: "Concatenate all daily CSVs. Remove Inf/NaN rows. Large: ~2.8M rows.
+    The UNB portal is registration-gated, so the files come from the Kaggle
+    mirror of the MachineLearningCVE daily flow CSVs."
+  download:
+    engine: kaggle
+    slug: chethuhn/network-intrusion-dataset
+    expect: [Monday-WorkingHours.pcap_ISCX.csv, Wednesday-workingHours.pcap_ISCX.csv]
+
+unsw_nb15:
+  domain: cybersecurity
+  status: new
+  source: unsw
+  url: https://research.unsw.edu.au/projects/unsw-nb15-dataset
+  filename: [UNSW_NB15_training-set.csv, UNSW_NB15_testing-set.csv]
+  target_column: label  # 0=Normal, 1=Attack
+  minority_value: 0  # Normal is minority in the full set; verify after loading
+  features_drop: [id, attack_cat]  # attack_cat is the multi-class label
+  encoding:
+    type: onehot
+    columns: [proto, service, state]
+  imputation: none
+  notes: "Use train+test combined (175,341 + 82,332 = 257,673). 9 attack types.
+    Binary: Normal vs Attack. UNSW's own CloudStor host was decommissioned in
+    2023 and the project page no longer links a download, so the files come
+    from the Kaggle mirror of the official split."
+  download:
+    engine: kaggle
+    slug: mrwellsdavid/unsw-nb15
+    expect: [UNSW_NB15_training-set.csv, UNSW_NB15_testing-set.csv]
+
+# ═══════════════════════════════════════════════════════════════
+# DOMAIN 4: MANUFACTURING & INDUSTRY
+# ═══════════════════════════════════════════════════════════════
+
+cwru_bearing:
+  domain: manufacturing
+  status: existing
+  source: cwru
+  url: https://engineering.case.edu/bearingdatacenter/download-data-file
+  target_column: condition
+  binarization: normal_vs_fault
+  minority_value: normal  # 230 normal windows vs 2,070 fault windows; see notes
+  preprocessing:
+    type: time_domain_feature_extraction
+    sampling_rate_khz: 48
+    channel: DE  # Drive End accelerometer
+    load_hp: 1
+    window: 2048
+    overlap: 0
+    windows_per_condition: 230
+    statistics: [max, min, mean, sd, rms, skewness, kurtosis, crest, form]
+    result_features: 9
+  # CWRU Bearing Data Center file numbers: 48 kHz Drive End, motor load 1 HP.
+  conditions:
+    Normal_1: 98
+    IR_007_1: 110
+    Ball_007_1: 123
+    OR_007_6_1: 136
+    IR_014_1: 175
+    Ball_014_1: 190
+    OR_014_6_1: 202
+    IR_021_1: 214
+    Ball_021_1: 227
+    OR_021_6_1: 239
+  notes: "Pipeline recovered from the COMIA project
+    (2026-2/statistical_analysis, experiments/validate_table2.py::load_cwru and
+    datasets/09-Industrial-CWRU/feature_time_48k_2048_load_1.csv). N=2,300 (10
+    conditions x 230 windows), d=9. Statistics use the SAMPLE standard deviation
+    (ddof=1) as the denominator of the standardized moments, and kurtosis is
+    excess (minus 3); crest = max/rms, form = rms/mean. Reproduced from the
+    official CWRU files to ~5 significant digits against COMIA's CSV.
+    POLARITY: COMIA encodes fault=1, but fault is the majority there (2,070 of
+    2,300), which would break the canonical 0=majority/1=minority contract, so
+    imbdata labels normal=1 (230, minority) and fault=0. Same partition of the
+    same rows, labels swapped; IR 9:1, matching COMIA's own convention for its
+    other industrial dataset."
+  download:
+    engine: http
+    files:
+      - url: https://engineering.case.edu/sites/default/files/98.mat
+        filename: Normal_1_098.mat
+      - url: https://engineering.case.edu/sites/default/files/110.mat
+        filename: IR_007_1_110.mat
+      - url: https://engineering.case.edu/sites/default/files/123.mat
+        filename: Ball_007_1_123.mat
+      - url: https://engineering.case.edu/sites/default/files/136.mat
+        filename: OR_007_6_1_136.mat
+      - url: https://engineering.case.edu/sites/default/files/175.mat
+        filename: IR_014_1_175.mat
+      - url: https://engineering.case.edu/sites/default/files/190.mat
+        filename: Ball_014_1_190.mat
+      - url: https://engineering.case.edu/sites/default/files/202.mat
+        filename: OR_014_6_1_202.mat
+      - url: https://engineering.case.edu/sites/default/files/214.mat
+        filename: IR_021_1_214.mat
+      - url: https://engineering.case.edu/sites/default/files/227.mat
+        filename: Ball_021_1_227.mat
+      - url: https://engineering.case.edu/sites/default/files/239.mat
+        filename: OR_021_6_1_239.mat
+
+seu_gearbox:
+  domain: manufacturing
+  status: existing
+  source: github
+  url: https://github.com/cathysiyu/Mechanical-datasets
+  target_column: condition
+  binarization: normal_vs_fault
+  minority_value: normal  # 2 healthy conditions of 10; see notes
+  preprocessing:
+    type: fft_feature_extraction
+    channel: 2  # planetary gearbox vibration, x direction (1-based column index)
+    window: 256
+    overlap: 0
+    windows_per_file: 250
+    random_state: 42
+    result_features: 128  # rfft magnitude bins, window // 2
+  # Southeast University gearset: 4 gear fault types plus healthy operation,
+  # each recorded at two speed-load configurations (20 Hz-0 V and 30 Hz-2 V).
+  conditions:
+    Health_20_0: normal
+    Health_30_2: normal
+    Chipped_20_0: fault
+    Chipped_30_2: fault
+    Miss_20_0: fault
+    Miss_30_2: fault
+    Root_20_0: fault
+    Root_30_2: fault
+    Surface_20_0: fault
+    Surface_30_2: fault
+  notes: "Pipeline recovered from the COMIA project
+    (2026-2/statistical_analysis, experiments/validate_table2.py::load_seu_gearbox):
+    non-overlapping windows of 256 samples, rfft magnitude spectrum giving 128
+    features, 250 windows drawn per file with numpy default_rng(42), healthy
+    operation as the minority class.
+    SOURCE NOTE: COMIA ran that pipeline over 40 CWRU 12 kHz bearing .mat files
+    that sit in its 10-Industrial-SEU_Gearbox directory (their names are CWRU
+    B/IR/OR codes, the folder's own 'Bearing-dataset' file credits the CWRU
+    Bearing Data Center, and the loader keys on 'DE' = Drive End). imbdata
+    instead serves the actual SEU gearset this key names, so N, d and IR do not
+    reproduce COMIA's Table 2: the SEU gearset has 10 recordings (2 healthy)
+    rather than 40 (4 healthy), giving N=2,500 and IR 4:1. Raising
+    windows_per_file to 1000 restores COMIA's N=10,000."
+  download:
+    engine: github
+    files:
+      - url: https://raw.githubusercontent.com/cathysiyu/Mechanical-datasets/master/gearbox/gearset/Health_20_0.csv
+        filename: Health_20_0.csv
+      - url: https://raw.githubusercontent.com/cathysiyu/Mechanical-datasets/master/gearbox/gearset/Health_30_2.csv
+        filename: Health_30_2.csv
+      - url: https://raw.githubusercontent.com/cathysiyu/Mechanical-datasets/master/gearbox/gearset/Chipped_20_0.csv
+        filename: Chipped_20_0.csv
+      - url: https://raw.githubusercontent.com/cathysiyu/Mechanical-datasets/master/gearbox/gearset/Chipped_30_2.csv
+        filename: Chipped_30_2.csv
+      - url: https://raw.githubusercontent.com/cathysiyu/Mechanical-datasets/master/gearbox/gearset/Miss_20_0.csv
+        filename: Miss_20_0.csv
+      - url: https://raw.githubusercontent.com/cathysiyu/Mechanical-datasets/master/gearbox/gearset/Miss_30_2.csv
+        filename: Miss_30_2.csv
+      - url: https://raw.githubusercontent.com/cathysiyu/Mechanical-datasets/master/gearbox/gearset/Root_20_0.csv
+        filename: Root_20_0.csv
+      - url: https://raw.githubusercontent.com/cathysiyu/Mechanical-datasets/master/gearbox/gearset/Root_30_2.csv
+        filename: Root_30_2.csv
+      - url: https://raw.githubusercontent.com/cathysiyu/Mechanical-datasets/master/gearbox/gearset/Surface_20_0.csv
+        filename: Surface_20_0.csv
+      - url: https://raw.githubusercontent.com/cathysiyu/Mechanical-datasets/master/gearbox/gearset/Surface_30_2.csv
+        filename: Surface_30_2.csv
+
+secom:
+  domain: manufacturing
+  status: new
+  source: uci
+  url: https://archive.ics.uci.edu/dataset/179/secom
+  filename: [secom.data, secom_labels.data]
+  target_column: label
+  minority_value: 1  # fail/defective
+  majority_value: -1  # pass
+  features_drop: []  # start with all 590
+  encoding: none
+  imputation:
+    method: median
+    drop_threshold: 0.50  # drop features with >50% missing
+  notes: "590 features, ~4.4% missing. d >> N regime. Record final d in manifest."
+  download:
+    engine: http
+    files:
+      - url: https://archive.ics.uci.edu/static/public/179/secom.zip
+        extract: true
+        expect: [secom.data, secom_labels.data]
+
+# ═══════════════════════════════════════════════════════════════
+# DOMAIN 5: BIOINFORMATICS
+# ═══════════════════════════════════════════════════════════════
+
+svmguide1:
+  domain: bioinformatics
+  status: existing
+  source: libsvm
+  url: https://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary.html
+  filename: [svmguide1, svmguide1.t]
+  target_column: label
+  minority_value: 0  # verified: combined train+test is 3,089 zeros vs 4,000 ones
+  encoding: none
+  imputation: none
+  notes: "Train (3,089) + test (4,000) concatenated to the benchmark N=7,089, d=4.
+    Observed IR is 1.29:1, not the 3.07:1 quoted in PLAN.md; see STATUS.md."
+  download:
+    engine: http
+    files:
+      - url: https://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary/svmguide1
+        filename: svmguide1
+      - url: https://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary/svmguide1.t
+        filename: svmguide1.t
+
+yeast_me3:
+  domain: bioinformatics
+  status: existing
+  source: uci  # UCI original; KEEL's yeast4.dat is the ME2 variant, not ME3
+  url: https://archive.ics.uci.edu/dataset/110/yeast
+  filename: yeast.data
+  target_column: site
+  minority_value: ME3  # mitochondrial, per the PLAN.md binarization protocol
+  features_drop: [sequence_name]
+  encoding: none
+  imputation: none
+  notes: "N=1,484, d=8, 163 ME3 rows, IR 8.1:1 (KEEL yeast3). PLAN.md quotes
+    IR 28:1, which is the ME2 variant (KEEL yeast4, 51 rows); see STATUS.md."
+  download:
+    engine: http
+    files:
+      - url: https://archive.ics.uci.edu/static/public/110/yeast.zip
+        extract: true
+        expect: [yeast.data]
+
+ecoli_imu:
+  domain: bioinformatics
+  status: existing
+  source: uci  # UCI original; the KEEL mirror is unreliable and ships subsets
+  url: https://archive.ics.uci.edu/dataset/39/ecoli
+  filename: ecoli.data
+  target_column: site
+  minority_value: imU  # inner membrane, uncleavable signal sequence
+  features_drop: [sequence_name]
+  encoding: none
+  imputation: none
+  notes: "Reproduces the KEEL ecoli3 benchmark: N=336, d=7, 35 imU rows, IR 8.6:1."
+  download:
+    engine: http
+    files:
+      - url: https://archive.ics.uci.edu/static/public/39/ecoli.zip
+        extract: true
+        expect: [ecoli.data]
+
+# ═══════════════════════════════════════════════════════════════
+# DOMAIN 6: INSURANCE
+# ═══════════════════════════════════════════════════════════════
+
+vehicle_insurance_fraud:
+  domain: insurance
+  status: new
+  source: kaggle
+  url: https://www.kaggle.com/datasets/shivamb/vehicle-claim-fraud-detection
+  filename: fraud_oracle.csv
+  target_column: FraudFound_P
+  minority_value: 1
+  features_drop: [PolicyNumber]
+  encoding:
+    type: onehot
+    columns: [Make, AccidentArea, Sex, MaritalStatus, Fault, PolicyType, VehicleCategory, VehiclePrice, Days_Policy_Accident, Days_Policy_Claim, PastNumberOfClaims, AgeOfVehicle, AgeOfPolicyHolder, PoliceReportFiled, WitnessPresent, AgentType, NumberOfSuppliments, AddressChange_Claim, NumberOfCars, BasePolicy]
+  imputation: none
+
+# ═══════════════════════════════════════════════════════════════
+# DOMAIN 7: TELECOMMUNICATIONS
+# ═══════════════════════════════════════════════════════════════
+
+iranian_churn:
+  domain: telecommunications
+  status: new
+  source: uci
+  url: https://archive.ics.uci.edu/ml/datasets/Iranian+Churn+Dataset
+  filename: Customer Churn.csv
+  target_column: Churn
+  minority_value: 1
+  features_drop: []
+  encoding: none  # verify; may have categorical columns
+  imputation: none
+  download:
+    engine: http
+    files:
+      - url: https://archive.ics.uci.edu/static/public/563/iranian+churn+dataset.zip
+        extract: true
+        expect: [Customer Churn.csv]
+
+# ═══════════════════════════════════════════════════════════════
+# DOMAIN 8: SOFTWARE ENGINEERING
+# ═══════════════════════════════════════════════════════════════
+
+nasa_pc1:
+  domain: software_engineering
+  status: new
+  source: promise
+  url: http://promise.site.uottawa.ca/SERepository/datasets-page.html
+  github: https://github.com/ApoorvaKrisna/NASA-promise-dataset-repository
+  filename: nasa_pc1.arff
+  openml_id: 1068  # OpenML mirror of the PROMISE original
+  target_column: defects
+  minority_value: true  # defective
+  features_drop: []
+  encoding: none  # McCabe + Halstead metrics are numeric
+  imputation: none
+  notes: "1,109 modules, 77 defective, IR 13.4:1. Served from OpenML: the GitHub PROMISE mirror ships a
+    13,204-row JM1 variant that does not match the PLAN.md table."
+  download:
+    engine: openml
+
+nasa_jm1:
+  domain: software_engineering
+  status: new
+  source: promise
+  url: http://promise.site.uottawa.ca/SERepository/datasets-page.html
+  github: https://github.com/ApoorvaKrisna/NASA-promise-dataset-repository
+  filename: nasa_jm1.arff
+  openml_id: 1053  # OpenML mirror of the PROMISE original
+  target_column: defects
+  minority_value: true  # defective
+  features_drop: []
+  encoding: none  # McCabe + Halstead metrics are numeric
+  imputation: none
+  notes: "10,885 modules, 2,106 defective, IR 4.2:1. Served from OpenML: the GitHub PROMISE mirror ships a
+    13,204-row JM1 variant that does not match the PLAN.md table."
+  download:
+    engine: openml
+
+# ═══════════════════════════════════════════════════════════════
+# DOMAIN 9: SPACE WEATHER
+# ═══════════════════════════════════════════════════════════════
+
+swan_sf:
+  domain: space_weather
+  status: new
+  source: harvard_dataverse
+  url: https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/EBCFKM
+  github_cleaned: https://github.com/samresume/Cleaned-SWANSF-Dataset
+  target_column: label
+  binarization: major_vs_nonflare  # M+X (1) vs FQ+B+C (0)
+  preprocessing:
+    type: mvts_feature_extraction
+    parameters: 24  # magnetic field parameters
+    timesteps: 60  # 12-min cadence over 12 hours
+    statistics: [mean, std, min, max, skewness, kurtosis, slope, autocorr_lag1]
+    result_features: 192  # 24 × 8
+  cross_validation: use_5_partitions  # temporal partitions, no random split
+  parameter_columns: [TOTUSJH, TOTBSQ, TOTPOT, TOTUSJZ, ABSNJZH, SAVNCPP, USFLUX, TOTFZ,
+    MEANPOT, EPSZ, MEANSHR, SHRGT45, MEANGAM, MEANGBT, MEANGBZ, MEANGBH, MEANJZH, TOTFY,
+    MEANJZD, MEANALP, TOTFX, EPSY, EPSX, R_VALUE]
+  notes: "Alternative if features non-informative: use raw 24×60=1440 features.
+    Instances are tab-separated CSVs of 60 timesteps inside per-partition tarballs,
+    filed under FL/ (M and X flares) and NF/ (FQ, B and C). Partition 1 alone holds
+    73,494 instances with 1,255 M+X, i.e. IR 57.6:1, which matches the ~60:1 of the
+    PLAN.md table; the N≈4,075 of that table matches no partition-level reading."
+  download:
+    engine: dataverse
+    doi: doi:10.7910/DVN/EBCFKM
+    files:
+      - url: https://dataverse.harvard.edu/api/access/datafile/3642446
+        filename: partition1_instances.tar.gz
+        extract: false
+      - url: https://dataverse.harvard.edu/api/access/datafile/3642449
+        filename: partition2_instances.tar.gz
+        extract: false
+      - url: https://dataverse.harvard.edu/api/access/datafile/3642433
+        filename: partition3_instances.tar.gz
+        extract: false
+      - url: https://dataverse.harvard.edu/api/access/datafile/3642451
+        filename: partition4_instances.tar.gz
+        extract: false
+      - url: https://dataverse.harvard.edu/api/access/datafile/3642450
+        filename: partition5_instances.tar.gz
+        extract: false
+
+# ═══════════════════════════════════════════════════════════════
+# DOMAIN 10: CROSS-DOMAIN (Digital Comms, Environmental, Social, Food, Marine)
+# ═══════════════════════════════════════════════════════════════
+
+spambase:
+  domain: digital_communications
+  status: new
+  source: uci
+  url: https://archive.ics.uci.edu/dataset/94/spambase
+  filename: spambase.data
+  target_column: class  # last column
+  minority_value: 1  # spam
+  features_drop: []
+  encoding: none  # 57 continuous features
+  imputation: none
+  download:
+    engine: http
+    files:
+      - url: https://archive.ics.uci.edu/static/public/94/spambase.zip
+        extract: true
+        expect: [spambase.data]
+
+ozone_level:
+  domain: environmental
+  status: new
+  source: uci
+  url: https://archive.ics.uci.edu/dataset/172/ozone+level+detection
+  filename: eighthr.data  # 8-hour peak prediction
+  target_column: class  # last column
+  minority_value: 1  # ozone day
+  features_drop: [date]
+  encoding: none
+  imputation: median  # has missing values marked as '?'
+  download:
+    engine: http
+    files:
+      - url: https://archive.ics.uci.edu/static/public/172/ozone+level+detection.zip
+        extract: true
+        expect: [eighthr.data, onehr.data]
+
+adult_census:
+  domain: social_sciences
+  status: new
+  source: uci
+  url: https://archive.ics.uci.edu/dataset/2/adult
+  filename: [adult.data, adult.test]
+  target_column: income
+  minority_value: ">50K"
+  majority_value: "<=50K"
+  features_drop: []
+  encoding:
+    type: onehot
+    columns: [workclass, education, marital-status, occupation, relationship, race, sex, native-country]
+  imputation: mode  # missing values marked as ' ?' in categorical columns
+  download:
+    engine: http
+    files:
+      - url: https://archive.ics.uci.edu/static/public/2/adult.zip
+        extract: true
+        expect: [adult.data, adult.test]
+
+wine_quality_red:
+  domain: food_agriculture
+  status: new
+  source: uci
+  url: https://archive.ics.uci.edu/dataset/186/wine+quality
+  filename: winequality-red.csv
+  target_column: quality
+  binarization: quality_8_vs_rest  # quality=8 → 1, rest → 0 (KEEL standard)
+  features_drop: []
+  encoding: none  # 11 continuous physicochemical features
+  imputation: none
+  download:
+    engine: http
+    files:
+      - url: https://archive.ics.uci.edu/static/public/186/wine+quality.zip
+        extract: true
+        expect: [winequality-red.csv]
+
+abalone_19:
+  domain: marine_biology
+  status: new
+  source: uci
+  url: https://archive.ics.uci.edu/dataset/1/abalone
+  filename: abalone.data
+  target_column: rings
+  binarization: rings_19_vs_rest  # rings=19 → 1, rest → 0 (KEEL standard)
+  features_drop: []
+  encoding:
+    type: ordinal
+    columns: [sex]  # M=0, F=1, I=2
+  imputation: none
+  download:
+    engine: http
+    files:
+      - url: https://archive.ics.uci.edu/static/public/1/abalone.zip
+        extract: true
+        expect: [abalone.data]
