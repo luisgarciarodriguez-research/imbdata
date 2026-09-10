@@ -9,6 +9,8 @@
 - Datasets: **28/28 funcionales**
 - Store: ~13 GB en `~/.imbdata`
 - Bloqueantes: **ninguno**
+- Salvedad conocida: `seu_gearbox` no reproduce bit a bit entre versiones
+  mayores de numpy (ver "Reproducibilidad entre versiones de numpy")
 
 ### Checkpoints alcanzados
 - 🔖 **1.3** `StoreConfig().store_path()` → `/home/luisgarcia/.imbdata` ✅
@@ -130,6 +132,47 @@ archivos el equivalente fiel es 1,000. Resultado: **N=10,000, d=128, IR 4:1**.
 > Esta divergencia entre proyectos es exactamente lo que `imbdata` existe para
 > hacer visible: la clave `seu_gearbox` ahora sirve datos de SEU, y el
 > `manifest.json` certifica con SHA-256 qué se sirvió.
+
+### Reproducibilidad entre versiones de numpy
+
+Medido el 2026-09-10 al levantar el techo `numpy<2.0` de `pyproject.toml`. Se
+reconstruyeron seis datasets desde crudo bajo numpy 2.5.3 / pandas 2.3.3 /
+scikit-learn 1.9.0 / scipy 1.18.1 y se compararon celda a celda contra los
+parquet construidos con numpy 1.26.4.
+
+| Dataset | Camino numérico | Resultado |
+|---------|-----------------|-----------|
+| `cwru_bearing` | 9 indicadores de dominio temporal | idéntico bit a bit |
+| `swan_sf` | extracción MVTS, 192 features | idéntico bit a bit |
+| `tcga_brca` | filtro de varianza top-5,000 | idéntico bit a bit |
+| `abalone_19` | codificación ordinal | idéntico bit a bit |
+| `ecoli_imu` | binarización simple | idéntico bit a bit |
+| **`seu_gearbox`** | **`numpy.fft.rfft` → 128 bins** | **difiere en el último bit** |
+
+**`seu_gearbox` es la única excepción, y es estructural.** Es el único dataset
+cuyas features salen de una FFT, y las implementaciones de numpy 1.x y 2.x
+difieren en el último bit: al reconstruir cambian el 62.3 % de las celdas, pero
+como mucho 4.4e-16 en absoluto y 5.6e-13 en relativo, con la columna `target`
+idéntica. Numéricamente irrelevante; criptográficamente total, porque el
+SHA-256 cambia por completo.
+
+**Consecuencia práctica.** El principio de diseño 4 del PLAN.md —*"any consumer
+can verify they have the exact same data"*— se sostiene para 27 de 28 datasets
+sin condiciones. Para `seu_gearbox` se sostiene solo dentro de una misma versión
+mayor de numpy. Una máquina que reconstruya ese dataset desde crudo bajo numpy 2
+verá `HASH_MISMATCH` en `imbdata verify`, y **eso es una diferencia de versión,
+no corrupción**: para distinguirlas hay que comparar valores, no digests.
+
+No hay nada que corregir hoy. El store en `~/.imbdata` y su `manifest.json` se
+generaron ambos con numpy 1.26.4 y son consistentes entre sí. Importa cuando el
+store se reconstruya en otra máquina, que es una configuración alcanzable desde
+que el techo de numpy se levantó.
+
+Si en algún momento estorba, las salidas posibles son fijar `numpy<2` solo para
+quien reconstruya (no para quien consuma), guardar en el manifest la versión de
+numpy usada en cada entrada, o tolerar una diferencia relativa acotada en
+`verify()` en vez de exigir igualdad de digest. Ninguna hace falta mientras el
+store se distribuya ya construido.
 
 ### Cobertura de tests por módulo
 
@@ -283,6 +326,19 @@ miles de niveles.
 ---
 
 ## Historial
+
+### 2026-09-10 — Techo de numpy levantado y hallazgo de reproducibilidad en la FFT
+`pyproject.toml` deja de fijar `numpy<2.0` y `scikit-learn<2.0`. Verificado en
+un entorno desechable con numpy 2.5.3: 237/237 tests, ningún alias eliminado en
+numpy 2 dentro del paquete, y seis datasets reconstruidos desde crudo y
+comparados celda a celda. Cinco salen idénticos bit a bit; `seu_gearbox` no,
+porque es el único que pasa por `numpy.fft.rfft`. Detalle y consecuencias en la
+sección "Reproducibilidad entre versiones de numpy".
+Se descartó además una sospecha propia: `numpy>=1.24` sin techo no permite que
+pip empareje numpy 2 con pandas 2.0/2.1 compilados contra el ABI de 1.x, porque
+pandas anterior a 2.2.2 declara `numpy<2` y la resolución falla. No hace falta
+subir el piso de pandas.
+
 
 ### 2026-09-09 — Decisión 4/4: `tcga_brca` mantiene su especificación
 Sin cambio en los datos: se conservan Basal-solo como minoritaria (147 de 826,

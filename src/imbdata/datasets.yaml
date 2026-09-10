@@ -369,7 +369,17 @@ seu_gearbox:
     with 10 files the faithful equivalent is 1000, which lands on the same
     N=10,000 analysis budget that COMIA's _asymmetric_subsample() applies to its
     large datasets. Each recording holds 16,384 windows, so this uses 6.1% of
-    what is available; the imbalance ratio does not depend on this parameter."
+    what is available; the imbalance ratio does not depend on this parameter.
+    NOT BIT-REPRODUCIBLE ACROSS NUMPY MAJOR VERSIONS. This is the only dataset
+    whose features come from numpy.fft.rfft, and numpy 1.x and 2.x differ in the
+    last bit: rebuilding under numpy 2.5.3 moves 62.3% of the cells, by at most
+    4.4e-16 absolute and 5.6e-13 relative, with an identical target column. That
+    is numerically irrelevant but changes the SHA-256 completely, so a store
+    rebuilt from raw under a different numpy major version makes `imbdata verify`
+    report HASH_MISMATCH here and nowhere else. Treat that as a version
+    difference, not corruption: confirm it by comparing values rather than
+    digests. Measured 2026-09-10; every other dataset, including the MVTS
+    extraction of swan_sf, rebuilds bit-identical."
   download:
     engine: github
     files:
