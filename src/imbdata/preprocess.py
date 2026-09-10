@@ -836,8 +836,9 @@ class DatasetPreprocessor:
             frame: Frame about to be serialized.
 
         Raises:
-            PreprocessingError: If the target is absent or not binary, if any
-                feature is non-numeric, or if any cell is missing or infinite.
+            PreprocessingError: If the target is absent, not binary, or does not
+                put the minority class in label ``1``; if any feature is
+                non-numeric; or if any cell is missing or infinite.
         """
         if TARGET_COLUMN not in frame.columns:
             raise PreprocessingError(f"Canonical frame must contain a '{TARGET_COLUMN}' column.")
@@ -852,6 +853,18 @@ class DatasetPreprocessor:
             )
         if observed != {0, 1}:
             raise PreprocessingError(f"Target must contain both classes, found only {observed}.")
+
+        # Label 1 must be the minority. Consumers rely on this to pass a single
+        # minority_label across every dataset instead of special-casing some of
+        # them; an inverted dataset would compute the minority-centred measures
+        # on the wrong class without ever raising. Equal classes are allowed.
+        n_minority = int(target.sum())
+        n_majority = len(target) - n_minority
+        if n_minority > n_majority:
+            raise PreprocessingError(
+                f"Class 1 must be the minority: {n_minority} row(s) labelled 1 against "
+                f"{n_majority} labelled 0. Invert the binarization so that 0 = majority."
+            )
 
         non_numeric = [
             column for column in features.columns
@@ -1098,20 +1111,41 @@ class DatasetPreprocessor:
     ) -> None:
         """Preprocess the UCI Ozone Level Detection dataset.
 
-        The registry's ``filename`` selects the forecasting horizon:
-        ``eighthr.data`` (8-hour peak) or ``onehr.data`` (1-hour peak). Both
-        are headerless with a leading date column, 72 meteorological features
-        encoding missing values as ``'?'``, and a trailing ozone-day flag.
-        The date is dropped and the features are median-imputed.
+        The forecasting horizon selects the file: ``filename`` gives the
+        default (``onehr.data``, the 1-hour peak standard) and ``variant_files``
+        maps each variant name to its own file, so ``variant='eighthr'`` reads
+        the 8-hour horizon. Both are headerless with a leading date column, 72
+        meteorological features encoding missing values as ``'?'``, and a
+        trailing ozone-day flag. The date is dropped and the features are
+        median-imputed.
+
+        The two horizons share every predictor and differ only in which days
+        count as ozone days, so the pair varies the imbalance ratio (33.7:1
+        against 14.8:1) with the feature space held constant.
 
         Args:
             raw_dir: Directory holding the ozone flat files.
             output_path: Destination parquet file.
             meta: Registry metadata for the dataset.
-            variant: Unused; horizons are selected through ``filename``.
+            variant: Variant name, e.g. ``'eighthr'``. ``None`` reads the
+                default horizon.
+
+        Raises:
+            PreprocessingError: If ``variant`` is not declared in
+                ``variant_files``.
         """
-        filename = str(meta.get("filename") or "eighthr.data")
-        source = self.locate(raw_dir, filename, "eighthr.data")
+        default_name = str(meta.get("filename") or "onehr.data")
+        if variant:
+            variant_files = meta.get("variant_files") or {}
+            if variant not in variant_files:
+                raise PreprocessingError(
+                    f"Unknown ozone_level variant '{variant}'; "
+                    f"declared variants: {sorted(variant_files)}"
+                )
+            filename = str(variant_files[variant])
+        else:
+            filename = default_name
+        source = self.locate(raw_dir, filename)
         frame = pd.read_csv(source, header=None, na_values=list(MISSING_TOKENS))
         frame.columns = ["date"] + [f"f{i:02d}" for i in range(1, frame.shape[1] - 1)] + ["ozone"]
 

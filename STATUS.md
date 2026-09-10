@@ -38,11 +38,11 @@
   ✓ nasa_jm1: N=10885, d=21, IR=4.2:1
   ✓ nasa_pc1: N=1109, d=21, IR=13.4:1
   ✓ nsl_kdd: N=148517, d=122, IR=1.1:1
-  ✓ ozone_level: N=2534, d=72, IR=14.8:1
+  ✓ ozone_level: N=2536, d=72, IR=33.7:1
   ✓ paysim: N=6362620, d=11, IR=773.7:1
   ✓ pima_diabetes: N=768, d=8, IR=1.9:1
   ✓ secom: N=1567, d=562, IR=14.1:1
-  ✓ seu_gearbox: N=2500, d=128, IR=4.0:1
+  ✓ seu_gearbox: N=10000, d=128, IR=4.0:1
   ✓ spambase: N=4601, d=57, IR=1.5:1
   ✓ svmguide1: N=7089, d=4, IR=1.3:1
   ✓ swan_sf: N=331185, d=192, IR=52.1:1
@@ -90,10 +90,19 @@ Dos hallazgos que exigieron decisión y se resolvieron contigo:
    **Decisión: usar `X175`**, el canal propio del archivo → esa condición
    aporta 186 ventanas en vez de 230 y **N=2,256**. `_read_mat_channel()`
    selecciona explícitamente por número de archivo, con test de regresión.
-2. **Polaridad**: COMIA codifica falla=1, pero falla es su mayoría (2,026 de
-   2,256), lo que rompería el contrato canónico. imbdata etiqueta
-   **normal=1** (230, minoritaria) y falla=0. Misma partición de las mismas
-   filas, solo se intercambian los nombres. IR 8.8:1.
+2. **Polaridad (confirmada como decisión 3/4 el 2026-09-09)**: COMIA codifica
+   falla=1, pero falla es su mayoría (2,026 de 2,256), lo que rompería el
+   contrato canónico. imbdata etiqueta **normal=1** (230, minoritaria) y
+   falla=0. Misma partición de las mismas filas, solo se intercambian los
+   nombres. IR 8.8:1.
+   Tres razones para no copiar a COMIA aquí: su propio docstring dice
+   "normal=majority, any fault=minority", que contradice a su código y a sus
+   datos; su otro dataset industrial (`load_seu_gearbox`) usa la convención
+   contraria, normal=1, así que no hay una "convención de COMIA" única; y
+   `CIPADataset` recibe `minority_label` explícito, de modo que una polaridad
+   invertida no falla — calcularía D2, D3, D4 y D7 sobre la clase equivocada
+   en silencio. El contrato existe justamente para que el consumidor pueda
+   pasar `minority_label=1` una sola vez para los 28 datasets.
 
 **`seu_gearbox`** — de `experiments/validate_table2.py::load_seu_gearbox`:
 
@@ -101,7 +110,7 @@ Dos hallazgos que exigieron decisión y se resolvieron contigo:
 |-----------|-------|
 | Ventana | 256 muestras, sin solapamiento |
 | Features | 128 (magnitud de `rfft`, se descarta el bin de Nyquist) |
-| Muestreo | 250 ventanas por archivo, `numpy.default_rng(42)` |
+| Muestreo | 1,000 ventanas por archivo, `numpy.default_rng(42)` |
 | Clase 1 | operación sana (minoritaria) |
 
 **Hallazgo:** el directorio `10-Industrial-SEU_Gearbox` de COMIA **no contiene
@@ -111,11 +120,12 @@ acredita literalmente al *CWRU Bearing Data Center*, y `load_seu_gearbox()`
 busca claves `DE` (Drive End, nomenclatura CWRU).
 
 **Decisión: servir el SEU auténtico** (`cathysiyu/Mechanical-datasets`,
-`gearbox/gearset`) con los parámetros de COMIA. Consecuencia esperada y
-aceptada: el gearset real tiene 10 grabaciones (2 sanas) en vez de 40 (4
-sanas), así que **N=2,500, d=128, IR 4:1** en lugar del N=10,000 e IR 9:1 de
-la Tabla 2 de COMIA. Subir `windows_per_file` a 1000 restauraría N=10,000; es
-una línea de `datasets.yaml`.
+`gearbox/gearset`) con los parámetros de COMIA. El gearset real tiene 10
+grabaciones (2 sanas) en vez de 40 (4 sanas), así que **IR 4:1** en lugar del
+9:1 de la Tabla 2 de COMIA. `windows_per_file` quedó en **1,000** (no en los
+250 de COMIA) tras la decisión 2/4 del 2026-09-09: aquel 250 era aritmética
+para llegar a N=10,000 con 40 archivos, no una propiedad del método, y con 10
+archivos el equivalente fiel es 1,000. Resultado: **N=10,000, d=128, IR 4:1**.
 
 > Esta divergencia entre proyectos es exactamente lo que `imbdata` existe para
 > hacer visible: la clave `seu_gearbox` ahora sirve datos de SEU, y el
@@ -168,12 +178,18 @@ cuadra es la cifra de IR (o de N) de la tabla resumen.
    slug concreto sigue en 403. No es un problema de token. Se usa el bloque
    `download.mirror` sin autenticación; el resultado (N=768, 500/268) coincide
    con el original.
-4. **`ozone_level` — horizonte de predicción.** `datasets.yaml` declara
-   `filename: eighthr.data  # 8-hour peak prediction` → N=2,534, 160 positivas,
-   IR 14.8:1. La tabla del PLAN cita N=2,536 e IR 34:1, que corresponden a
-   **`onehr.data`** (2,536 filas, 73 positivas, IR 33.7:1). Se implementó lo
-   que declara el YAML; el preprocesador lee el horizonte de `filename`, así
-   que cambiar a 1 hora es editar una línea del YAML, sin tocar código.
+4. **`ozone_level` — horizonte de predicción (RESUELTA 2026-09-09).** El YAML
+   declaraba `eighthr.data` (8 h → N=2,534, 160 positivas, IR 14.8:1) mientras
+   la tabla del PLAN citaba N=2,536 e IR 34:1, que son de `onehr.data`
+   (1 h → 73 positivas, IR 33.7:1). **Decisión: `onehr` como default y
+   `eighthr` como variante declarada.** Se eligió el horizonte de 1 hora porque
+   alinea con el PLAN y porque mejora la cobertura del eje de desbalance: había
+   cuatro datasets apiñados entre 13.4 y 15.7 y un hueco entre 15.7 y 42.
+   El de 8 horas —que es el estándar vigente desde que la EPA revocó el de
+   1 hora en 2005— se conserva como `ozone_level__eighthr.parquet`. Ambos
+   comparten los 72 predictores y los mismos días, así que el par aísla el
+   efecto del IR con el espacio de features constante, lo que sirve de control
+   si D2/D3/D7 resultan inestables con solo 73 minoritarias.
 5. **`wine_quality_red` — IR.** Tanto `datasets.yaml`
    (`binarization: quality_8_vs_rest`) como la tabla "Binarization Protocol"
    del PLAN especifican calidad = 8 como minoritaria → 18 de 1,599 →
@@ -221,8 +237,9 @@ cuadra es la cifra de IR (o de N) de la tabla resumen.
     se respetó el contrato canónico, no la tabla.
 12. **`seu_gearbox` — procedencia.** COMIA ejecutó su pipeline "SEU gearbox"
     sobre datos de rodamientos CWRU, no de SEU (ver arriba). imbdata sirve el
-    SEU auténtico, de modo que N=2,500, d=128 e IR 4:1 no reproducen la Tabla 2
-    de COMIA. Decisión tomada de forma explícita, no por omisión.
+    SEU auténtico, así que el IR 4:1 no reproduce el 9:1 de la Tabla 2 de COMIA.
+    N=10,000 y d=128 sí coinciden, pero por construcción, no por equivalencia
+    del dato. Decisión tomada de forma explícita, no por omisión.
 
 Notas sobre `d`: `adult_census` (14→105), `nsl_kdd` (41→122), `unsw_nb15`
 (49→196), `vehicle_insurance_fraud` (33→147), `baf` (30→52) y
@@ -235,13 +252,15 @@ de forma ordinal, no one-hot, porque `DeviceInfo` y los dominios de email suman
 miles de niveles.
 
 ### Siguientes pasos
-1. Decidir si `ozone_level` debe usar `onehr.data` en vez de `eighthr.data`
-   (una línea de YAML) para alinearse con la tabla del PLAN.
-2. Decidir si `seu_gearbox` debe subir `windows_per_file` a 1000 para conservar
-   el N=10,000 de COMIA (otra línea de YAML).
-3. Handoff a CIPA Extended:
-   `pip install -e /home/luisgarcia/projects/unam/dcic/2027-1/imbdata` y
-   `imbdata.load(...)` desde el store compartido.
+1. Decisiones pendientes: **las cuatro cerradas el 2026-09-09.**
+   - ~~`ozone_level`: horizonte de 1 h vs 8 h~~ → resuelta el 2026-09-09.
+   - ~~`seu_gearbox`: `windows_per_file` 250 vs 1000~~ → resuelta el 2026-09-09.
+   - ~~`cwru_bearing`: polaridad frente a la convención de COMIA~~ → resuelta el 2026-09-09.
+   - ~~`tcga_brca`: divergencia con COMIA~~ → resuelta el 2026-09-09.
+2. EDA en el repositorio de CIPA Extended (decidido: no va en repo aparte; el
+   control de calidad del dato sí baja a imbdata).
+3. Handoff al proyecto nuevo de CIPA Extended:
+   `pip install -e /home/luisgarcia/projects/unam/dcic/2027-1/imbdata`.
 
 ### Notas de implementación
 - **Entorno:** se creó `.venv` en la raíz. El entorno conda `base` tiene
@@ -264,6 +283,69 @@ miles de niveles.
 ---
 
 ## Historial
+
+### 2026-09-09 — Decisión 4/4: `tcga_brca` mantiene su especificación
+Sin cambio en los datos: se conservan Basal-solo como minoritaria (147 de 826,
+IR 4.6:1) y el filtro top-5,000 por varianza, con la variante `full` de 20,155
+genes. COMIA usa top-2,000 y Basal+Her2 (214 de 826, IR 2.9:1) sobre **las
+mismas 826 muestras**: los cuatro subtipos que conserva son el conjunto
+completo con llamada PAM50, así que la divergencia está solo en la etiqueta y
+en d, no en las filas. Se mantuvo la especificación de imbdata porque el
+PLAN.md la justifica por dimensión (d_full para D₁/D₅/D₆, d_filtered para
+D₂/D₃/D₄/D₇) mientras que la de COMIA no trae razonamiento en el código, y
+porque el IR de Basal-solo (826/147 = 5.6) es el que reproduce el ~5.5:1 de la
+tabla del PLAN leído como N/minoritaria. Se descartó añadir una variante
+compatible con COMIA: dejaría tres artefactos para un dataset y la continuidad
+punto por punto con el paper no es el aporte de CIPA Extended. La divergencia
+quedó anotada en `datasets.yaml`, junto al parámetro, además de aquí.
+
+### Cierre de las cuatro decisiones pendientes (2026-09-09)
+
+| # | Decisión | Resultado | Efecto en el dato |
+|---|----------|-----------|-------------------|
+| 1 | `ozone_level`: horizonte | 1 h por default, 8 h como variante | N 2,534 → 2,536; IR 14.8 → 33.7 |
+| 2 | `seu_gearbox`: ventanas/archivo | 250 → 1,000 | N 2,500 → 10,000; IR sin cambio |
+| 3 | `cwru_bearing`: polaridad | normal=1, sin cambio | ninguno; contrato blindado en `check_canonical()` |
+| 4 | `tcga_brca`: divergencia con COMIA | especificación propia, sin cambio | ninguno |
+
+Criterio aplicado en las cuatro: alinearse con COMIA cuando su elección está
+fundamentada, y apartarse cuando no lo está, dejando la razón escrita junto al
+parámetro en `datasets.yaml` y no solo en este documento.
+
+
+### 2026-09-09 — Decisión 3/4: se confirma normal=1 en `cwru_bearing` y se blinda el contrato
+Sin cambio en los datos: `cwru_bearing` mantiene normal=1 (230, minoritaria) y
+falla=0 (2,026), IR 8.8:1. Al revisarlo salió una brecha: `check_canonical()`
+validaba que el target fuera binario 0/1 con ambas clases presentes, pero **no**
+que la clase 1 fuera la minoritaria — esa mitad del contrato solo la ejercía un
+test de `test_api.py`, así que cualquier `_preprocess_*` futuro podía invertir
+la polaridad y pasar la validación. Ahora se comprueba en el escritor, con
+mensaje que dice cómo corregirlo. Los empates 50/50 se permiten (no hay
+minoría que exigir). Revalidados los 28 datasets más la variante `eighthr`:
+ninguna violación. Tests: 218 en la corrida rápida.
+
+
+### 2026-09-09 — Decisión 2/4: `seu_gearbox` sube a 1,000 ventanas por archivo
+N pasa de 2,500 a 10,000 (d=128 e IR 4:1 sin cambio: el parámetro no toca la
+proporción de clases, solo el tamaño). Razón: los loaders de COMIA aplican
+`_asymmetric_subsample(n_target=10_000)` a sus datasets grandes, así que su
+presupuesto de análisis es 10,000; servir 2,500 le habría puesto al consumidor
+un techo por debajo de ese presupuesto por un detalle de implementación de
+imbdata. Además el 250 de COMIA era aritmética para llegar a 10,000 con 40
+archivos, no una propiedad del método. Se corrigió de paso la coincidencia
+engañosa con `cwru_bearing` (N=2,256): ese está topado por la longitud de sus
+grabaciones, no por elección. Efecto esperado sobre CIPA: D1 y D5 sin cambio;
+D2, D3 y D7 se mueven porque son medidas de vecindad y la densidad aumenta.
+
+
+### 2026-09-09 — Decisión 1/4: `ozone_level` pasa al horizonte de 1 hora
+Default cambiado a `onehr.data` (N=2,536, 73 positivas, IR 33.7:1) y el
+horizonte de 8 horas conservado como variante `eighthr` (N=2,534, 160
+positivas, IR 14.8:1). El registro gana un campo `variant_files` que mapea
+nombre de variante a archivo, y `_preprocess_ozone_level` lo resuelve y falla
+con mensaje explícito ante una variante no declarada. Ambas versiones
+verifican OK contra el manifest. Tests: 216 en la corrida rápida.
+
 
 ### 2026-09-08 20:41 — cwru_bearing y seu_gearbox: 28/28 ✅
 Localizado el proyecto de COMIA en `2026-2/statistical_analysis` y recuperada de

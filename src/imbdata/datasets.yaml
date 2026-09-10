@@ -155,7 +155,14 @@ tcga_brca:
   clinical_filename: Human__TCGA_BRCA__MS__Clinical__Clinical__01_28_2016__BI__Clinical__Firehose.tsi
   notes: "d_full ~20,500 used for D₁, D₅, D₆. d_filtered=5,000 for D₂, D₃, D₄, D₇.
     The LinkedOmics matrix is already log2(RSEM+1)-transformed (see the file name),
-    so preprocessing does not re-apply the transform."
+    so preprocessing does not re-apply the transform.
+    DIVERGENCE FROM COMIA, deliberate: that project keeps the top 2,000 genes and
+    treats Basal+Her2 as the minority (214 of 826, IR 2.9:1). This registry follows
+    the PLAN.md binarization protocol — Basal-like against all other PAM50 subtypes
+    (147 of 826, IR 4.6:1) — which also matches the ~5.5:1 of the PLAN.md table read
+    as N/minority, and keeps Basal-like as the harder, clinically distinct minority
+    that the literature uses. Both projects read the same 826 samples: the four
+    subtypes COMIA retains are the complete set with a PAM50 call."
   download:
     engine: http
     files:
@@ -329,7 +336,7 @@ seu_gearbox:
     channel: 2  # planetary gearbox vibration, x direction (1-based column index)
     window: 256
     overlap: 0
-    windows_per_file: 250
+    windows_per_file: 1000  # 10 recordings x 1,000 = COMIA's N=10,000 analysis budget
     random_state: 42
     result_features: 128  # rfft magnitude bins, window // 2
   # Southeast University gearset: 4 gear fault types plus healthy operation,
@@ -354,10 +361,15 @@ seu_gearbox:
     that sit in its 10-Industrial-SEU_Gearbox directory (their names are CWRU
     B/IR/OR codes, the folder's own 'Bearing-dataset' file credits the CWRU
     Bearing Data Center, and the loader keys on 'DE' = Drive End). imbdata
-    instead serves the actual SEU gearset this key names, so N, d and IR do not
-    reproduce COMIA's Table 2: the SEU gearset has 10 recordings (2 healthy)
-    rather than 40 (4 healthy), giving N=2,500 and IR 4:1. Raising
-    windows_per_file to 1000 restores COMIA's N=10,000."
+    instead serves the actual SEU gearset this key names, so the composition does
+    not reproduce COMIA's Table 2: the SEU gearset has 10 recordings (2 healthy)
+    rather than 40 (4 healthy), giving IR 4:1 instead of 9:1.
+    windows_per_file is 1000 rather than COMIA's 250 because that 250 was
+    arithmetic to reach N=10,000 across 40 files, not a property of the method;
+    with 10 files the faithful equivalent is 1000, which lands on the same
+    N=10,000 analysis budget that COMIA's _asymmetric_subsample() applies to its
+    large datasets. Each recording holds 16,384 windows, so this uses 6.1% of
+    what is available; the imbalance ratio does not depend on this parameter."
   download:
     engine: github
     files:
@@ -621,12 +633,23 @@ ozone_level:
   status: new
   source: uci
   url: https://archive.ics.uci.edu/dataset/172/ozone+level+detection
-  filename: eighthr.data  # 8-hour peak prediction
+  filename: onehr.data  # 1-hour peak; matches the N=2,536 / IR 34:1 of PLAN.md
+  variants: [eighthr]  # ozone_level__eighthr.parquet = 8-hour peak horizon
+  variant_files:
+    eighthr: eighthr.data
   target_column: class  # last column
   minority_value: 1  # ozone day
   features_drop: [date]
   encoding: none
   imputation: median  # has missing values marked as '?'
+  notes: "UCI ships two labellings of the same 72 meteorological predictors over
+    the same days: onehr applies the 1-hour peak ozone standard (N=2,536, 73
+    ozone days, IR 33.7:1) and eighthr the 8-hour one (N=2,534, 160 ozone days,
+    IR 14.8:1). The 1-hour horizon is the default because it matches the PLAN.md
+    table and spreads the registry's IR coverage; the 8-hour horizon, which is
+    the standard in force since the EPA revoked the 1-hour one in 2005, is kept
+    as a variant. The pair isolates the effect of IR with every feature held
+    constant."
   download:
     engine: http
     files:

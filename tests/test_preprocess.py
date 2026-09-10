@@ -365,6 +365,23 @@ def test_check_canonical_rejects_a_single_class_target(canonical_frame: pd.DataF
         DatasetPreprocessor.check_canonical(frame)
 
 
+def test_check_canonical_rejects_an_inverted_polarity(canonical_frame: pd.DataFrame) -> None:
+    """Label 1 must be the minority, or minority-centred measures read backwards."""
+    frame = canonical_frame.copy()
+    frame["target"] = [1, 1, 1, 1, 0, 0]
+    with pytest.raises(PreprocessingError, match="must be the minority"):
+        DatasetPreprocessor.check_canonical(frame)
+
+
+def test_check_canonical_allows_perfectly_balanced_classes(
+    canonical_frame: pd.DataFrame,
+) -> None:
+    """A 50/50 split has no minority, so it is accepted rather than rejected."""
+    frame = canonical_frame.copy()
+    frame["target"] = [0, 0, 0, 1, 1, 1]
+    assert DatasetPreprocessor.check_canonical(frame) is None
+
+
 def test_check_canonical_rejects_categorical_features(canonical_frame: pd.DataFrame) -> None:
     """Un-encoded categorical columns violate the contract."""
     frame = canonical_frame.copy()
@@ -423,6 +440,15 @@ def test_every_implemented_routine_names_a_registered_dataset() -> None:
 
     registered = set(DatasetRegistry().list_all())
     assert set(DatasetPreprocessor().implemented()) <= registered
+
+
+def test_unknown_ozone_variant_names_the_declared_ones(tmp_path: Path) -> None:
+    """Asking for a variant the registry does not declare fails loudly."""
+    meta = {"filename": "onehr.data", "variant_files": {"eighthr": "eighthr.data"}}
+    with pytest.raises(PreprocessingError, match="Unknown ozone_level variant"):
+        DatasetPreprocessor().preprocess(
+            "ozone_level", tmp_path, tmp_path / "out.parquet", meta, variant="twelvehr"
+        )
 
 
 def test_preprocess_unimplemented_dataset_raises(tmp_path: Path) -> None:

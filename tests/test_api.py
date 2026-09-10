@@ -74,8 +74,8 @@ BATCH_C_ROWS = {
     # 10 CWRU conditions x 230 windows, less the 44 windows that condition
     # IR_014_1 cannot supply from its own X175 recording.
     "cwru_bearing": 2256,
-    # 10 SEU gearset recordings x 250 windows.
-    "seu_gearbox": 2500,
+    # 10 SEU gearset recordings x 1,000 windows.
+    "seu_gearbox": 10000,
 }
 
 BATCH_B_ROWS = {
@@ -90,7 +90,7 @@ BATCH_B_ROWS = {
 BATCH_A_ROWS = {
     "mammography": 11183,
     "iranian_churn": 3150,
-    "ozone_level": 2534,
+    "ozone_level": 2536,   # 1-hour horizon; the eighthr variant has 2,534
     "adult_census": 48842,
     "wine_quality_red": 1599,
     "abalone_19": 4177,
@@ -229,8 +229,27 @@ def test_seu_gearbox_has_the_declared_128_spectral_features() -> None:
     """A 256-sample window yields 128 FFT magnitude bins, healthy as minority."""
     X, y = imbdata.load("seu_gearbox")
     assert X.shape[1] == 128
-    assert int(y.sum()) == 500          # 2 healthy recordings x 250 windows
-    assert len(y) == 2500
+    assert int(y.sum()) == 2000         # 2 healthy recordings x 1,000 windows
+    assert len(y) == 10000
+
+
+@requires_cached("ozone_level")
+def test_ozone_level_horizons_share_features_and_differ_in_imbalance() -> None:
+    """The 1-hour default and the 8-hour variant vary only the labelling.
+
+    Both horizons label the same 72 meteorological predictors over the same
+    days, so the pair isolates the effect of the imbalance ratio.
+    """
+    default, y_default = imbdata.load("ozone_level")
+    assert int(y_default.sum()) == 73          # ozone days under the 1-hour standard
+
+    variant_path = StoreConfig().processed_path("ozone_level", "eighthr")
+    if not variant_path.is_file():
+        pytest.skip("the 'eighthr' variant is not cached")
+
+    eighthr, y_eighthr = imbdata.load("ozone_level", variant="eighthr")
+    assert list(eighthr.columns) == list(default.columns)
+    assert int(y_eighthr.sum()) == 160         # ozone days under the 8-hour standard
 
 
 @requires_cached("swan_sf")
