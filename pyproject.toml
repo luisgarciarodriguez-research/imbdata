@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "imbdata"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Centralized dataset repository for imbalanced classification benchmarks"
 readme = "README.md"
 license = { text = "MIT" }
@@ -45,6 +45,11 @@ imbdata = "imbdata.cli:main"
 
 [project.urls]
 Repository = "https://github.com/luisgarciarodriguez-research/imbdata"
+
+[tool.hatch.version]
+# Single source of truth: bumping __version__ moves the package version, the
+# CLI's --version, and the HTTP User-Agent together.
+path = "src/imbdata/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/imbdata"]

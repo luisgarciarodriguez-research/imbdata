@@ -17,7 +17,7 @@ Author:
     CVU: 905206 · ORCID: 0009-0004-9514-5508
 
 Project:
-    imbdata v0.1.0 — Imbalanced Classification Dataset Repository
+    imbdata v0.2.0 — Imbalanced Classification Dataset Repository
     Advisor: Dr. José Antonio Neme Castillo
     Research Group: Anomalocaris
 """
@@ -40,6 +40,7 @@ from urllib.parse import unquote, urlparse
 import requests
 from tqdm import tqdm
 
+from imbdata import __version__
 from imbdata.config import StoreConfig, default_config
 from imbdata.exceptions import CredentialsError, DownloadError
 
@@ -49,7 +50,10 @@ MAX_RETRIES = 3
 BACKOFF_SECONDS = 2.0
 TIMEOUT_SECONDS = 60
 CHUNK_SIZE = 1 << 16  # 64 KiB
-USER_AGENT = "imbdata/0.1.0 (+https://github.com/luisgarciarodriguez-research/imbdata)"
+USER_AGENT = (
+    f"imbdata/{__version__} "
+    f"(+https://github.com/luisgarciarodriguez-research/imbdata)"
+)
 
 ARCHIVE_SUFFIXES = (".zip", ".tar", ".tar.gz", ".tgz", ".tar.bz2", ".gz")
 

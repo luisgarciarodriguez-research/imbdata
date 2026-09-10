@@ -12,7 +12,7 @@ Author:
     CVU: 905206 · ORCID: 0009-0004-9514-5508
 
 Project:
-    imbdata v0.1.0 — Imbalanced Classification Dataset Repository
+    imbdata v0.2.0 — Imbalanced Classification Dataset Repository
     Advisor: Dr. José Antonio Neme Castillo
     Research Group: Anomalocaris
 """
@@ -23,6 +23,7 @@ from pathlib import Path
 
 import pytest
 
+from imbdata import __version__
 from imbdata.api import DatasetService
 from imbdata.cli import EXIT_ERROR, EXIT_OK, CLI, main
 from imbdata.config import StoreConfig
@@ -126,11 +127,29 @@ def test_status_reports_the_store_location(
 
 
 def test_version_flag_exits_cleanly(capsys: pytest.CaptureFixture[str]) -> None:
-    """`--version` prints the package version and exits via SystemExit(0)."""
+    """`--version` reports the package version and exits via SystemExit(0).
+
+    Asserts against ``__version__`` rather than a literal so that a release
+    bump does not need this test edited alongside it.
+    """
     with pytest.raises(SystemExit) as exit_info:
         CLI.build_parser().parse_args(["--version"])
     assert exit_info.value.code == 0
-    assert "imbdata 0.1.0" in capsys.readouterr().out
+    assert f"imbdata {__version__}" in capsys.readouterr().out
+
+
+def test_version_is_reported_consistently_everywhere() -> None:
+    """The CLI, the User-Agent and the installed metadata agree on one version.
+
+    They used to hardcode the string separately, so a bump could leave the
+    HTTP User-Agent claiming a release that no longer matched the package.
+    """
+    from importlib.metadata import version
+
+    from imbdata.download import USER_AGENT
+
+    assert version("imbdata") == __version__
+    assert USER_AGENT.startswith(f"imbdata/{__version__} ")
 
 
 def test_main_dispatches_to_the_cli(monkeypatch: pytest.MonkeyPatch) -> None:

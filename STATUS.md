@@ -8,6 +8,7 @@
 - Tests: **214 pasando** en la corrida rápida (~3 s) + **19 marcados `slow`**
 - Datasets: **28/28 funcionales**
 - Store: ~13 GB en `~/.imbdata`
+- Versión: **0.2.0** (ver `CHANGELOG.md`)
 - Bloqueantes: **ninguno**
 - Salvedad conocida: `seu_gearbox` no reproduce bit a bit entre versiones
   mayores de numpy (ver "Reproducibilidad entre versiones de numpy")
@@ -326,6 +327,31 @@ miles de niveles.
 ---
 
 ## Historial
+
+### 2026-09-10 — Versión 0.2.0 y fuente única para el número de versión
+`main` había avanzado dos commits más allá del tag `v0.1.0` sin cambiar el
+número, así que quien instalara desde `main` obtenía datos distintos a los del
+tag bajo la misma versión. Se cierra con **0.2.0**: por SemVer, `9a32f00` cambió
+los datos servidos (`ozone_level` cambia de horizonte, `seu_gearbox` cuadruplica
+N), y en la serie `0.x` eso es un cambio menor.
+
+Antes del bump se corrigió lo que lo hacía frágil: la versión estaba escrita a
+mano en `pyproject.toml`, en `__version__`, en el `USER_AGENT` de `download.py`
+y en un literal de `test_cli.py`. Ahora `imbdata.__version__` es la única
+fuente — hatchling la lee vía `[tool.hatch.version]`, el `User-Agent` la
+interpola y los tests la comparan contra sí misma. Un release futuro toca una
+línea de código en vez de cuatro, y se añadió un test que comprueba que el CLI,
+el `User-Agent` y los metadatos instalados coinciden.
+
+Añadido `CHANGELOG.md`, siguiendo la convención de `statistical_analysis`, con
+la política de versionado explícita: en `0.x`, cambiar los datos que sirve una
+clave es ruptura y sube la minor, porque un consumidor que fija versión y
+actualiza recibiría filas distintas sin aviso.
+
+Quedan 19 headers de autoría con la versión embebida, que hay que actualizar en
+cada release. Es mecánico y visible, pero si molesta se puede quitar `v0.2.0`
+de la plantilla del PLAN.md y dejar el número solo donde es fuente de verdad.
+
 
 ### 2026-09-10 — Techo de numpy levantado y hallazgo de reproducibilidad en la FFT
 `pyproject.toml` deja de fijar `numpy<2.0` y `scikit-learn<2.0`. Verificado en

@@ -16,7 +16,7 @@ X, y = imbdata.load("credit_card_fraud")
 
 - **Author:** Luis García Rodríguez · DCIC, IIMAS-UNAM · CVU 905206 · ORCID [0009-0004-9514-5508](https://orcid.org/0009-0004-9514-5508)
 - **Advisor:** Dr. José Antonio Neme Castillo · Anomalocaris, IIMAS-UNAM
-- **Version:** 0.1.0 · **License:** MIT
+- **Version:** 0.2.0 · **License:** MIT
 
 ---
 
