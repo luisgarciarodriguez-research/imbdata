@@ -37,8 +37,12 @@ pip install -e .                  # from a local clone
 pip install -e '.[kaggle,dev]'    # with the Kaggle CLI and the test tooling
 ```
 
-Requires Python ≥ 3.10 and `numpy<2.0`. If your default interpreter carries
-numpy 2.x, install into a dedicated virtual environment:
+Requires Python ≥ 3.10 and `pandas<3.0`. Both numpy 1.x and 2.x are supported
+(verified under numpy 2.5.3); the one caveat is that `seu_gearbox` rebuilt from
+raw under a different numpy major version gets a different SHA-256 (see
+`CHANGELOG.md`, 0.2.0). If your default interpreter carries pandas 3.x, or a
+pandas built against another numpy ABI, install into a dedicated virtual
+environment:
 
 ```bash
 python -m venv .venv && .venv/bin/pip install -e '.[dev]'
@@ -96,7 +100,14 @@ entry and SHA-256:
 ```python
 X, y = imbdata.load("tcga_brca")                  # top-5,000 genes by variance
 X, y = imbdata.load("tcga_brca", variant="full")  # all ~20,000 genes
+
+X, y = imbdata.load("ozone_level")                    # 1-hour peak horizon, IR 33.7:1
+X, y = imbdata.load("ozone_level", variant="eighthr") # 8-hour peak horizon, IR 14.8:1
 ```
+
+The two `ozone_level` horizons share every feature and every day and differ
+only in which days count as ozone days, so the pair varies the imbalance ratio
+with the feature space held constant.
 
 ## Command line
 

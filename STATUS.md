@@ -184,10 +184,12 @@ store se distribuya ya construido.
 | `test_config.py` | 15 | Prioridad de rutas, creación de dirs, variantes, JSON atómico |
 | `test_verify.py` | 15 | SHA-256, CRUD de manifest, los 4 estados de verificación |
 | `test_download.py` | 26 | Selección de engine, specs del registro, extracción, idempotencia |
-| `test_preprocess.py` | 64 | 16 funciones puras + contrato canónico + despacho |
-| `test_api.py` | 86 | `list`/`info`/`load`/`ensure`/`verify`, contrato de los 28 datasets |
-| `test_cli.py` | 13 | Los 5 subcomandos y sus códigos de salida |
-| **Total** | **233** | 214 en la corrida rápida + 19 marcados `slow` |
+| `test_preprocess.py` | 69 | Funciones puras + contrato canónico + despacho |
+| `test_api.py` | 90 | `list`/`info`/`load`/`ensure`/`verify`, contrato de los 30 datasets |
+| `test_cli.py` | 14 | Los 5 subcomandos, sus códigos de salida y `--version` |
+| **Total** | **244** | 225 en la corrida rápida + 19 marcados `slow` (todos en `test_api.py`) |
+
+Conteos al 2026-09-14 (versión 0.3.0), según `pytest --collect-only -m ""`.
 
 Los tests unitarios corren sin red, contra stores temporales y fixtures
 sintéticos. Los de integración se auto-omiten (`skip`) si el dataset no está
@@ -316,7 +318,8 @@ miles de niveles.
 - **Entorno:** se creó `.venv` en la raíz. El entorno conda `base` tiene
   numpy 2.4.6 con un pandas compilado contra numpy 1.x (`import pandas` falla),
   y `pip install -e .` allí habría degradado numpy globalmente por la
-  restricción `numpy<2.0` de `pyproject.toml`. Verificación:
+  restricción `numpy<2.0` que tenía entonces `pyproject.toml` (retirada en
+  0.2.0; hoy el único techo es `pandas<3.0`). Verificación:
   `.venv/bin/python -m pip install -e .` + `.venv/bin/python -c "import imbdata; ..."`.
 - **Arquitectura OOP:** cada módulo expone su clase de dominio y una fachada de
   funciones que delega en una instancia por defecto creada de forma perezosa
