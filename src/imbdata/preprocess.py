@@ -21,7 +21,7 @@ Author:
     CVU: 905206 · ORCID: 0009-0004-9514-5508
 
 Project:
-    imbdata v0.2.0 — Imbalanced Classification Dataset Repository
+    imbdata v0.3.0 — Imbalanced Classification Dataset Repository
     Advisor: Dr. José Antonio Neme Castillo
     Research Group: Anomalocaris
 """
@@ -63,6 +63,7 @@ NSL_KDD_COLUMNS = [
 __all__ = [
     "TARGET_COLUMN",
     "binarize_column",
+    "binarize_at_most",
     "normalize_target",
     "onehot_encode",
     "ordinal_encode",
@@ -119,6 +120,38 @@ def binarize_column(series: pd.Series, minority_value: Any) -> pd.Series:
         raise PreprocessingError(
             f"Minority value {minority_value!r} never occurs in the target column. "
             f"Observed values: {observed}"
+        )
+    return mask.astype("int64")
+
+
+def binarize_at_most(series: pd.Series, threshold: float) -> pd.Series:
+    """Map values at or below ``threshold`` to 1 and every other row to 0.
+
+    Complements :func:`binarize_column`, which tests equality against a single
+    value. Ordinal scores such as the UCI wine quality grade define their
+    minority class as a tail rather than one level, and a tail cannot be
+    expressed as an equality.
+
+    Args:
+        series: Raw ordinal label column.
+        threshold: Highest value that still belongs to the minority class.
+
+    Returns:
+        An ``int64`` Series of zeros and ones, aligned with ``series``.
+
+    Raises:
+        PreprocessingError: If no row falls at or below ``threshold``.
+
+    Example:
+        >>> binarize_at_most(pd.Series([3, 5, 8, 4]), 4).tolist()
+        [1, 0, 0, 1]
+    """
+    numeric = pd.to_numeric(series, errors="coerce")
+    mask = numeric <= threshold
+    if not mask.any():
+        raise PreprocessingError(
+            f"No row scores at or below {threshold}; "
+            f"observed range {numeric.min()}-{numeric.max()}"
         )
     return mask.astype("int64")
 
@@ -1242,6 +1275,35 @@ class DatasetPreprocessor:
         X = to_numeric_frame(frame.drop(columns=[target_column]))
         self.write(assemble_canonical(X, y), output_path)
 
+    def _preprocess_wine_quality_white(
+        self,
+        raw_dir: Path,
+        output_path: Path,
+        meta: dict[str, Any],
+        variant: str | None = None,
+    ) -> None:
+        """Preprocess the UCI Wine Quality (white) dataset.
+
+        ``winequality-white.csv`` is semicolon-delimited with the same 11
+        continuous physicochemical features as the red wine file and an integer
+        quality score. The minority class is the low-quality tail declared in
+        ``datasets.yaml`` as ``minority_max``: quality 4 or below, 183 of 4,898
+        instances, IR 25.8:1.
+
+        Args:
+            raw_dir: Directory holding ``winequality-white.csv``.
+            output_path: Destination parquet file.
+            meta: Registry metadata for the dataset.
+            variant: Unused; the dataset has a single variant.
+        """
+        source = self.locate(raw_dir, "winequality-white.csv")
+        frame = pd.read_csv(source, sep=";")
+        target_column = meta.get("target_column", "quality")
+
+        y = binarize_at_most(frame[target_column], float(meta.get("minority_max", 4)))
+        X = to_numeric_frame(frame.drop(columns=[target_column]))
+        self.write(assemble_canonical(X, y), output_path)
+
     def _preprocess_abalone_19(
         self,
         raw_dir: Path,
@@ -1358,6 +1420,42 @@ class DatasetPreprocessor:
         dropped = [c for c in self._as_sequence(meta.get("features_drop")) if c in frame.columns]
         features = frame.drop(columns=["label", *dropped])
         X = to_numeric_frame(onehot_encode(features, self._encoding_columns(meta)))
+        self.write(assemble_canonical(X, y), output_path)
+
+    def _preprocess_satimage(
+        self,
+        raw_dir: Path,
+        output_path: Path,
+        meta: dict[str, Any],
+        variant: str | None = None,
+    ) -> None:
+        """Preprocess the UCI Statlog (Landsat Satellite) dataset.
+
+        ``sat.trn`` (4,435 rows) and ``sat.tst`` (2,000 rows) are concatenated
+        to N=6,435. Both are headerless and space-delimited: 36 integer values
+        in 0-255, the four spectral bands of each pixel of a 3x3 neighbourhood
+        read left-to-right and top-to-bottom, followed by the class of the
+        central pixel. Class 4 ("damp grey soil", 626 rows) is the minority.
+
+        Args:
+            raw_dir: Directory holding ``sat.trn`` and ``sat.tst``.
+            output_path: Destination parquet file.
+            meta: Registry metadata for the dataset.
+            variant: Unused; the dataset has a single variant.
+        """
+        names = [f"p{pixel}_b{band}" for pixel in range(1, 10) for band in range(1, 5)]
+        names.append("class")
+        frame = pd.concat(
+            [
+                pd.read_csv(self.locate(raw_dir, filename), sep=r"\s+", header=None, names=names)
+                for filename in ("sat.trn", "sat.tst")
+            ],
+            ignore_index=True,
+        )
+
+        target_column = meta.get("target_column", "class")
+        y = binarize_column(frame[target_column], meta.get("minority_value", 4))
+        X = to_numeric_frame(frame.drop(columns=[target_column]))
         self.write(assemble_canonical(X, y), output_path)
 
     # ══════════════════════════════════════════════════════════════════

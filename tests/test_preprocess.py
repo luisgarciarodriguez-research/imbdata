@@ -11,7 +11,7 @@ Author:
     CVU: 905206 · ORCID: 0009-0004-9514-5508
 
 Project:
-    imbdata v0.2.0 — Imbalanced Classification Dataset Repository
+    imbdata v0.3.0 — Imbalanced Classification Dataset Repository
     Advisor: Dr. José Antonio Neme Castillo
     Research Group: Anomalocaris
 """
@@ -29,6 +29,7 @@ from imbdata.preprocess import (
     MVTS_STATISTICS,
     DatasetPreprocessor,
     assemble_canonical,
+    binarize_at_most,
     binarize_column,
     drop_constant_columns,
     drop_high_missing,
@@ -73,6 +74,17 @@ def test_binarize_column_without_matches_raises() -> None:
     """A minority value that never occurs is a preprocessing error."""
     with pytest.raises(PreprocessingError, match="never occurs"):
         binarize_column(pd.Series(["A", "B"]), "Z")
+
+
+def test_binarize_at_most_marks_the_low_tail() -> None:
+    """Values at or below the threshold map to 1 and the rest to 0."""
+    assert binarize_at_most(pd.Series([3, 5, 8, 4]), 4).tolist() == [1, 0, 0, 1]
+
+
+def test_binarize_at_most_without_matches_raises() -> None:
+    """A threshold below the observed range is a preprocessing error."""
+    with pytest.raises(PreprocessingError, match="at or below"):
+        binarize_at_most(pd.Series([5, 6, 7]), 2)
 
 
 def test_normalize_target_marks_rows_outside_the_two_labels() -> None:

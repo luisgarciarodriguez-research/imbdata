@@ -13,7 +13,7 @@ Author:
     CVU: 905206 · ORCID: 0009-0004-9514-5508
 
 Project:
-    imbdata v0.2.0 — Imbalanced Classification Dataset Repository
+    imbdata v0.3.0 — Imbalanced Classification Dataset Repository
     Advisor: Dr. José Antonio Neme Castillo
     Research Group: Anomalocaris
 """
@@ -42,9 +42,11 @@ BATCH_A_DATASETS = [
     "ozone_level",
     "adult_census",
     "wine_quality_red",
+    "wine_quality_white",
     "abalone_19",
     "secom",
     "nsl_kdd",
+    "satimage",
 ]
 
 BATCH_C_DATASETS = [

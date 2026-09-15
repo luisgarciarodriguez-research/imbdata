@@ -11,6 +11,27 @@ and upgrades would otherwise receive different rows without notice.
 `STATUS.md` carries the reasoning behind each decision; this file records what
 changed and which datasets it moves.
 
+## [0.3.0] — 2026-09-14
+
+No existing dataset key changes the data it serves.
+
+### Added
+
+- **`wine_quality_white`** (N=4,898, d=11, 183 minority, IR 25.8:1, CC BY 4.0).
+  The minority class is the low-quality tail (`quality <= 4`), the binarization
+  the imbalanced-learn benchmark uses, not the single grade the red wine file
+  takes from KEEL. Both wines come from the same UCI archive and the same study.
+- **`satimage`** (N=6,435, d=36, 626 minority, IR 9.3:1, CC BY 4.0), the Statlog
+  Landsat Satellite dataset with class 4 ("damp grey soil") as the minority. It
+  brings a new domain, `remote_sensing`, the fifteenth in the registry.
+- `binarize_at_most()`: a pure transformation for ordinal targets whose minority
+  class is a tail rather than a single level. `binarize_column()` tests equality
+  and cannot express that.
+
+### Changed
+
+- The registry grows from 28 datasets in 14 domains to 30 in 15.
+
 ## [0.2.0] — 2026-09-10
 
 ### Changed
@@ -67,5 +88,6 @@ download, deterministic preprocessing, SHA-256 verification and a single
 canonical format: `float64` features plus an `int64` `target` where `0` is the
 majority and `1` the minority, free of missing values and categorical columns.
 
+[0.3.0]: https://github.com/luisgarciarodriguez-research/imbdata/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/luisgarciarodriguez-research/imbdata/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/luisgarciarodriguez-research/imbdata/releases/tag/v0.1.0

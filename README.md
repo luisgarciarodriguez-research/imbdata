@@ -16,7 +16,7 @@ X, y = imbdata.load("credit_card_fraud")
 
 - **Author:** Luis García Rodríguez · DCIC, IIMAS-UNAM · CVU 905206 · ORCID [0009-0004-9514-5508](https://orcid.org/0009-0004-9514-5508)
 - **Advisor:** Dr. José Antonio Neme Castillo · Anomalocaris, IIMAS-UNAM
-- **Version:** 0.2.0 · **License:** MIT
+- **Version:** 0.3.0 · **License:** MIT
 
 ---
 
@@ -143,7 +143,7 @@ Relocate the store with the `IMBDATA_STORE` environment variable, or with a
 | `CLI` | `cli.py` | Argument parsing and subcommand dispatch |
 
 Stateless transformations are plain functions: `compute_sha256`,
-`binarize_column`, `normalize_target`, `onehot_encode`, `ordinal_encode`,
+`binarize_column`, `binarize_at_most`, `normalize_target`, `onehot_encode`, `ordinal_encode`,
 `impute_median`, `impute_mode`, `drop_high_missing`, `drop_constant_columns`,
 `select_top_variance`, `to_numeric_frame`, `assemble_canonical`, and the
 signal-summarizing trio `segment_signal`, `extract_time_domain_features`,
@@ -155,7 +155,7 @@ injectable in tests.
 
 ## Registered datasets
 
-28 datasets across 14 domains. `datasets.yaml` holds the metadata, the direct
+30 datasets across 15 domains. `datasets.yaml` holds the metadata, the direct
 file URLs, and the binarization, encoding, and imputation rules for each.
 
 | Domain | Datasets |
@@ -167,9 +167,10 @@ file URLs, and the binarization, encoding, and imputation rules for each.
 | bioinformatics | `ecoli_imu`, `svmguide1`, `yeast_me3` |
 | software_engineering | `nasa_jm1`, `nasa_pc1` |
 | space_weather | `swan_sf` |
-| others | `abalone_19`, `adult_census`, `iranian_churn`, `ozone_level`, `spambase`, `vehicle_insurance_fraud`, `wine_quality_red` |
+| remote_sensing | `satimage` |
+| others | `abalone_19`, `adult_census`, `iranian_churn`, `ozone_level`, `spambase`, `vehicle_insurance_fraud`, `wine_quality_red`, `wine_quality_white` |
 
-All 28 are implemented and cached; `imbdata verify` reports 28 OK.
+All 30 are implemented and cached; `imbdata verify` reports 30 OK.
 
 Sources that need credentials or a manual step are handled as follows:
 

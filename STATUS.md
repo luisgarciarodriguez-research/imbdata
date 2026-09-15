@@ -1,27 +1,28 @@
 # STATUS — imbdata
 
-## Último reporte: 2026-09-08 20:41
+## Último reporte: 2026-09-14 21:24
 
 ### Estado actual
-- Fase: Fase 3 **completa** — 3.1 a 3.6
+- Fase: Fase A de ampliación del registro **completa** (A1 y A2); A3 pospuesta
 - Módulos: 9/9 implementados
-- Tests: **214 pasando** en la corrida rápida (~3 s) + **19 marcados `slow`**
-- Datasets: **28/28 funcionales**
+- Tests: **225 pasando** en la corrida rápida (~3 s) + **19 marcados `slow`** (244 en total)
+- Datasets: **30/30 funcionales**, 15 dominios
 - Store: ~13 GB en `~/.imbdata`
-- Versión: **0.2.0** (ver `CHANGELOG.md`)
+- Versión: **0.3.0** (ver `CHANGELOG.md`)
 - Bloqueantes: **ninguno**
 - Salvedad conocida: `seu_gearbox` no reproduce bit a bit entre versiones
   mayores de numpy (ver "Reproducibilidad entre versiones de numpy")
 
 ### Checkpoints alcanzados
 - 🔖 **1.3** `StoreConfig().store_path()` → `/home/luisgarcia/.imbdata` ✅
-- 🔖 **1.5** `imbdata.list_datasets()` → 28 nombres, 14 dominios ✅
+- 🔖 **1.5** `imbdata.list_datasets()` → 30 nombres, 15 dominios ✅ (28 y 14 hasta 0.2.0)
 - 🔖 **1.9** Validación piloto — 5/5 datasets end-to-end ✅
 - 🔖 **2.5** `pytest tests/` → 0 fallos ✅
 - 🔖 **3.1** Batch A — 13/28 ✅
 - 🔖 **3.2** Batch B — 20/28 previsto, superado ✅
 - 🔖 **3.3** Batch C — 28/28 ✅
-- 🔖 **3.4 / 3.5** `manifest.json` con 29 entradas; `verify()` → 28 OK ✅
+- 🔖 **3.4 / 3.5** `manifest.json` con 32 entradas (30 datasets + `tcga_brca__full` +
+  `ozone_level__eighthr`); `verify()` → 30 OK ✅
 - 🔖 **3.6** `cli.py` con los 5 subcomandos ✅
 - 🔖 **FINAL** — el script del PLAN.md corre sin `assert` fallido:
 
@@ -305,6 +306,11 @@ miles de niveles.
    control de calidad del dato sí baja a imbdata).
 3. Handoff al proyecto nuevo de CIPA Extended:
    `pip install -e /home/luisgarcia/projects/unam/dcic/2027-1/imbdata`.
+4. **Pendiente: partición oficial de `nsl_kdd`** (A3, pospuesta el 2026-09-14).
+   Exponer `KDDTest+` como variante con ataque=1 viola el contrato canónico,
+   porque ahí los ataques son mayoría. Ver el Historial de esa fecha.
+5. Fase B en cipa-extended: pin `imbdata>=0.3,<0.4`, `EXPECTED_DATASETS = 30`,
+   `make update-contract` (el diff debe mostrar solo las dos claves nuevas).
 
 ### Notas de implementación
 - **Entorno:** se creó `.venv` en la raíz. El entorno conda `base` tiene
@@ -327,6 +333,81 @@ miles de niveles.
 ---
 
 ## Historial
+
+### 2026-09-14 21:24 — Versión 0.3.0: `wine_quality_white` y `satimage` (30/30, 15 dominios)
+Fase A de la preparación de la compuerta G1 de CIPA Extended. Dos altas
+aditivas: ninguna clave existente cambia los datos que sirve.
+
+- **`wine_quality_white`** — N=4,898, d=11, 183 minoritarias, IR 25.8:1.
+  Motivo: `wine_quality_red` solo tiene 18 minoritarias, y con CV de 5 folds
+  quedan 3–4 positivos por fold. **Por qué `quality <= 4` y no `quality == 8`:**
+  es la binarización del `wine_quality` del benchmark de `imbalanced-learn`
+  (Lemaître, Nogueira y Aridas, JMLR 2017) y coincide con el ~26:1 que la tabla
+  del PLAN atribuye al vino. La razón es esa convención, no el conteo: aplicar
+  al blanco la regla del tinto (`== 8`) daría 175 minoritarias (IR 27:1), un
+  tamaño comparable. Las «5 instancias» que citaba el plan de trabajo son las
+  del grado máximo (`== 9`), no las de la regla del tinto.
+  Una cola ordinal no se expresa como igualdad, así que se añadió la función
+  pura `binarize_at_most()`; el umbral vive en el YAML (`minority_max: 4`), no
+  en el método.
+- **`satimage`** — Statlog Landsat Satellite de UCI, N=6,435 (4,435 + 2,000),
+  d=36, 626 minoritarias (clase 4, «damp grey soil»), IR 9.3:1, sin
+  duplicados ni faltantes. Aporta el dominio `remote_sensing`. El ZIP trae
+  `sat.trn` y `sat.tst` (más `sat.doc` e `Index`), separados por espacios, sin
+  cabecera y con la clase al final, como se esperaba. No se usa OpenML: su
+  id=182 sirve 6,430 filas. Hallazgo al abrir el ZIP: `sat.doc` pide *no*
+  hacer validación cruzada y entrenar y probar una sola vez con la partición
+  distribuida; el dataset se sirve combinado, como en UCI, KEEL e
+  imbalanced-learn, y la advertencia quedó en las `notes` del YAML.
+
+**A3 pospuesta — por qué la partición de NSL-KDD no salió en 0.3.0.** El plan
+era exponer `KDDTrain+`/`KDDTest+` como variantes `train`/`test`, sin tocar el
+default (148,517 filas), porque la partición es el aporte de diseño del dataset
+(el test contiene 17 tipos de ataque ausentes del train) y cambiar el default
+sería una ruptura para los consumidores actuales. Al verificarlo contra los
+archivos salieron dos obstáculos:
+
+1. **Polaridad.** En `KDDTest+` hay 12,833 ataques frente a 9,711 normales: el
+   ataque es la clase *mayoritaria*, así que la variante `test` con ataque=1
+   viola el contrato que `check_canonical()` blinda desde 0.2.0. En `KDDTrain+`
+   (58,630 frente a 67,343) sí se cumple. Invertir la polaridad solo en `test`
+   haría que entrenar con `train` y evaluar con `test` —el uso para el que
+   existe la partición— invirtiera la etiqueta en silencio, que es la misma
+   objeción por la que se rechazó `unsw_nb15` deduplicado.
+2. **Columnas.** `KDDTest+` trae 64 de los 70 servicios de `KDDTrain+`.
+   Codificar cada variante por separado daría matrices con columnas distintas;
+   habría que codificar sobre la unión y luego particionar las filas.
+
+Decisión del 2026-09-14: publicar 0.3.0 solo con A1 y A2 y resolver la
+partición más adelante. Salidas posibles a evaluar: exponer solo `train`,
+servir la partición como índices de filas en vez de como parquet aparte, o
+admitir de forma explícita variantes cuya clase 1 no sea minoritaria.
+
+**Descartados, para no volver a litigarlos.** Criterio: se admite una variante
+cuando la fuente original ya hace esa distinción (`ozone_level__eighthr`,
+`tcga_brca__full`, `KDDTrain+`/`KDDTest+`), no cuando es una decisión de
+análisis.
+- *Variantes deduplicadas de `unsw_nb15` y `cic_ids_2017`:* los duplicados están
+  en la fuente; servirlos es fidelidad y quitarlos le toca al consumidor.
+  Además `unsw_nb15` deduplicado invierte la clase minoritaria (IR 1.77 → 0.80).
+- *Protein Homology (KDD Cup 2004):* `kdd.org` no declara licencia para los
+  datos, solo un copyright genérico del sitio; es incompatible con archivar los
+  datos procesados en un Zenodo público.
+
+Huecos del plan de trabajo corregidos al ejecutarlo: además de
+`EXPECTED_DATASET_COUNT` en `test_api.py`, el 28 estaba cableado en
+`test_registry.py`, en dos aserciones de `test_cli.py` y en el doctest de
+`DatasetRegistry`; y `list_domains()` no está en `imbdata`, sino en
+`imbdata.registry`. El título del registro en PLAN.md decía «10 domains» cuando
+ya eran 14; ahora dice 15. El sello «Último reporte» de este archivo seguía en
+2026-09-08 aunque el cuerpo ya recogía cambios del 9 y el 10; queda al día.
+
+Verificado: `pytest -m ""` 244 pasando, 0 fallos (225 en la corrida rápida);
+`imbdata verify` → 30/30 OK; `wine_quality_white` 4,898 / 183 y `satimage` 6,435 / 626 desde el
+store; `nsl_kdd` sigue en 148,517; `list_datasets()` → 30, `list_domains()` → 15;
+`manifest.json` con 32 entradas. `__version__`, los metadatos instalados y
+`imbdata --version` reportan 0.3.0.
+
 
 ### 2026-09-10 — Versión 0.2.0 y fuente única para el número de versión
 `main` había avanzado dos commits más allá del tag `v0.1.0` sin cambiar el

@@ -14,7 +14,7 @@ Author:
     CVU: 905206 · ORCID: 0009-0004-9514-5508
 
 Project:
-    imbdata v0.2.0 — Imbalanced Classification Dataset Repository
+    imbdata v0.3.0 — Imbalanced Classification Dataset Repository
     Advisor: Dr. José Antonio Neme Castillo
     Research Group: Anomalocaris
 """
@@ -42,7 +42,7 @@ from .conftest import (
     requires_cached,
 )
 
-EXPECTED_DATASET_COUNT = 28
+EXPECTED_DATASET_COUNT = 30
 
 # Reference values from the PLAN.md dataset table. IR is checked only where the
 # table's figure was reproduced; svmguide1's is recorded in STATUS.md instead.
@@ -93,16 +93,19 @@ BATCH_A_ROWS = {
     "ozone_level": 2536,   # 1-hour horizon; the eighthr variant has 2,534
     "adult_census": 48842,
     "wine_quality_red": 1599,
+    "wine_quality_white": 4898,
     "abalone_19": 4177,
     "secom": 1567,
     "nsl_kdd": 148517,
+    # Statlog Landsat Satellite: sat.trn (4,435) + sat.tst (2,000).
+    "satimage": 6435,
 }
 
 
 # ── Discovery ─────────────────────────────────────────────────────────
 
 def test_list_datasets_returns_the_full_registry() -> None:
-    """The public listing exposes all 28 registered datasets, sorted."""
+    """The public listing exposes all 30 registered datasets, sorted."""
     names = imbdata.list_datasets()
     assert len(names) == EXPECTED_DATASET_COUNT
     assert names == sorted(names)
@@ -146,7 +149,7 @@ def test_info_on_unknown_dataset_raises() -> None:
 
 
 def test_info_flags_every_registered_dataset_as_implemented() -> None:
-    """`is_implemented` is true across the registry now that all 28 have routines."""
+    """`is_implemented` is true across the registry now that all 30 have routines."""
     missing = [n for n in imbdata.list_datasets() if not imbdata.info(n)["is_implemented"]]
     assert missing == []
 

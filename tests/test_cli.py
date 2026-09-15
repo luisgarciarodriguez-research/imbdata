@@ -12,7 +12,7 @@ Author:
     CVU: 905206 · ORCID: 0009-0004-9514-5508
 
 Project:
-    imbdata v0.2.0 — Imbalanced Classification Dataset Repository
+    imbdata v0.3.0 — Imbalanced Classification Dataset Repository
     Advisor: Dr. José Antonio Neme Castillo
     Research Group: Anomalocaris
 """
@@ -52,7 +52,7 @@ def test_no_command_prints_help(cli: CLI, capsys: pytest.CaptureFixture[str]) ->
 def test_list_prints_every_dataset(cli: CLI, capsys: pytest.CaptureFixture[str]) -> None:
     """`imbdata list` reports the full registry count."""
     assert cli.run(["list"]) == EXIT_OK
-    assert "28 dataset(s)" in capsys.readouterr().out
+    assert "30 dataset(s)" in capsys.readouterr().out
 
 
 def test_list_filters_by_domain(cli: CLI, capsys: pytest.CaptureFixture[str]) -> None:
@@ -123,7 +123,7 @@ def test_status_reports_the_store_location(
     assert cli.run(["status"]) == EXIT_OK
     output = capsys.readouterr().out
     assert str(temp_store.store_path()) in output
-    assert "registered   : 28 dataset(s)" in output
+    assert "registered   : 30 dataset(s)" in output
 
 
 def test_version_flag_exits_cleanly(capsys: pytest.CaptureFixture[str]) -> None:

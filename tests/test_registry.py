@@ -11,7 +11,7 @@ Author:
     CVU: 905206 · ORCID: 0009-0004-9514-5508
 
 Project:
-    imbdata v0.2.0 — Imbalanced Classification Dataset Repository
+    imbdata v0.3.0 — Imbalanced Classification Dataset Repository
     Advisor: Dr. José Antonio Neme Castillo
     Research Group: Anomalocaris
 """
@@ -25,11 +25,11 @@ import pytest
 from imbdata.exceptions import DatasetNotFoundError, RegistryError
 from imbdata.registry import DatasetRegistry, get_dataset_meta, get_registry
 
-EXPECTED_DATASET_COUNT = 28
+EXPECTED_DATASET_COUNT = 30
 
 
 def test_bundled_registry_declares_all_datasets() -> None:
-    """The registry shipped with the package holds the 28 planned datasets."""
+    """The registry shipped with the package holds the 30 registered datasets."""
     registry = DatasetRegistry()
     assert len(registry) == EXPECTED_DATASET_COUNT
     assert len(registry.list_all()) == EXPECTED_DATASET_COUNT

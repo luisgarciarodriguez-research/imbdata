@@ -3,7 +3,7 @@
 **Purpose:** Centralized local repository for downloading, versioning, preprocessing,
 and serving imbalanced classification benchmark datasets across multiple research projects.
 **Author:** Luis García Rodríguez · IIMAS-UNAM · CVU 905206
-**Version:** 0.2.0
+**Version:** 0.3.0
 **License:** MIT
 
 ---
@@ -132,7 +132,7 @@ Author:
     CVU: 905206 · ORCID: 0009-0004-9514-5508
 
 Project:
-    imbdata v0.2.0 — Imbalanced Classification Dataset Repository
+    imbdata v0.3.0 — Imbalanced Classification Dataset Repository
     Advisor: Dr. José Antonio Neme Castillo
     Research Group: Anomalocaris
 \"\"\"
@@ -389,7 +389,7 @@ This format contract is the interface between `imbdata` and all consumer project
 
 ---
 
-## Dataset Registry (28 datasets, 10 domains)
+## Dataset Registry (30 datasets, 15 domains)
 
 | # | Key | Domain | N | d | IR | Source |
 |---|-----|--------|---|---|-----|--------|
@@ -421,10 +421,13 @@ This format contract is the interface between `imbdata` and all consumer project
 | 26 | adult_census | social_sciences | 48,842 | 14 | 3.17:1 | UCI |
 | 27 | wine_quality_red | food_agriculture | 1,599 | 11 | ~26:1 | UCI |
 | 28 | abalone_19 | marine_biology | 4,177 | 8 | 130:1 | UCI |
+| 29 | wine_quality_white | food_agriculture | 4,898 | 11 | 25.8:1 | UCI |
+| 30 | satimage | remote_sensing | 6,435 | 36 | 9.3:1 | UCI |
 
 Domains: financial_fraud, medicine, cybersecurity, manufacturing, bioinformatics,
 insurance, telecommunications, software_engineering, space_weather,
-digital_communications, environmental, social_sciences, food_agriculture, marine_biology
+digital_communications, environmental, social_sciences, food_agriculture, marine_biology,
+remote_sensing
 
 ---
 
@@ -440,7 +443,9 @@ dedicated function `_preprocess_{key}()` that reads from `raw/` and writes to `p
 | unsw_nb15 | Normal | Attack (9 types merged) |
 | nsl_kdd | Normal | Attack |
 | cic_ids_2017 | BENIGN | Attack (all types merged) |
-| wine_quality_red | Quality ≤ 7 | Quality = 8 |
+| wine_quality_red | Quality ≠ 8 | Quality = 8 |
+| wine_quality_white | Quality ≥ 5 | Quality ≤ 4 |
+| satimage | Classes 1, 2, 3, 5, 7 | Class 4 (damp grey soil) |
 | abalone_19 | Rings ≠ 19 | Rings = 19 |
 | swan_sf | FQ + B + C | M + X (major flare) |
 | elliptic_bitcoin | Licit | Illicit (drop unlabeled) |
@@ -511,7 +516,7 @@ imbdata como a todos los proyectos consumidores (CIPA Extended, HEAD-Fraud, etc.
 📈 MÉTRICAS:
    - Módulos implementados: X / Y
    - Tests pasando: X / Y
-   - Datasets funcionales: X / 28
+   - Datasets funcionales: X / 30
 
 🔜 SIGUIENTES PASOS:
    1. {próxima tarea inmediata}
@@ -536,7 +541,7 @@ de cada reporte. El archivo es acumulativo (log de reportes, más reciente arrib
 - Fase: {fase actual}
 - Módulos: {X}/{Y} implementados
 - Tests: {X}/{Y} pasando
-- Datasets: {X}/28 funcionales
+- Datasets: {X}/30 funcionales
 - Bloqueantes: {lista o "ninguno"}
 
 ### Siguientes pasos
@@ -629,7 +634,7 @@ de cada reporte. El archivo es acumulativo (log de reportes, más reciente arrib
 > python -c "
 > import imbdata
 > ds = imbdata.list_datasets()
-> assert len(ds) == 28, f'Expected 28, got {len(ds)}'
+> assert len(ds) == 30, f'Expected 30, got {len(ds)}'
 > for name in ds:
 >     X, y = imbdata.load(name)
 >     assert set(y.unique()) == {0, 1}, f'{name}: target not binary'

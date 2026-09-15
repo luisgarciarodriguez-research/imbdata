@@ -706,6 +706,32 @@ wine_quality_red:
         extract: true
         expect: [winequality-red.csv]
 
+wine_quality_white:
+  domain: food_agriculture
+  status: new
+  source: uci
+  url: https://archive.ics.uci.edu/dataset/186/wine+quality
+  filename: winequality-white.csv
+  target_column: quality
+  binarization: quality_le_4_vs_rest  # quality <= 4 → 1, rest → 0
+  minority_max: 4  # highest grade still in the minority tail
+  features_drop: []
+  encoding: none  # 11 continuous physicochemical features
+  imputation: none
+  notes: "N=4,898, d=11, 183 low-quality wines (quality <= 4), IR 25.8:1. The
+    minority class is the low tail, not a single grade: this is the binarization
+    of the `wine_quality` entry in the imbalanced-learn benchmark (Lemaitre et
+    al., JMLR 2017), which also gives the ~26:1 of the PLAN.md table. The red
+    wine file in the same UCI archive keeps the KEEL quality=8 convention;
+    applied here it would give 175 minority rows (IR 27:1), and the top grade
+    alone (quality=9) only 5."
+  download:
+    engine: http
+    files:
+      - url: https://archive.ics.uci.edu/static/public/186/wine+quality.zip
+        extract: true
+        expect: [winequality-white.csv]
+
 abalone_19:
   domain: marine_biology
   status: new
@@ -725,3 +751,33 @@ abalone_19:
       - url: https://archive.ics.uci.edu/static/public/1/abalone.zip
         extract: true
         expect: [abalone.data]
+
+# ═══════════════════════════════════════════════════════════════
+# DOMAIN 11: REMOTE SENSING
+# ═══════════════════════════════════════════════════════════════
+
+satimage:
+  domain: remote_sensing
+  status: new
+  source: uci
+  url: https://archive.ics.uci.edu/dataset/146/statlog+landsat+satellite
+  filename: [sat.trn, sat.tst]
+  target_column: class  # last column
+  minority_value: 4  # "damp grey soil": 626 of 6,435
+  binarization: class_4_vs_rest
+  features_drop: []
+  encoding: none  # 36 integer spectral values, 4 bands x a 3x3 neighbourhood
+  imputation: none
+  notes: "N=6,435 (4,435 train + 2,000 test combined), d=36, 626 minority,
+    IR 9.3:1, 0 duplicates, 0 missing. Class 6 ('mixture class') has no
+    examples, as UCI documents. The combined N matches UCI, KEEL and the
+    imbalanced-learn benchmark. The archive's sat.doc advises training once on
+    sat.trn and testing once on sat.tst rather than cross-validating; that
+    split is not preserved here. OpenML's copies disagree with the source
+    (id=182 serves 6,430 rows), so the files come from the UCI archive."
+  download:
+    engine: http
+    files:
+      - url: https://archive.ics.uci.edu/static/public/146/statlog+landsat+satellite.zip
+        extract: true
+        expect: [sat.trn, sat.tst]
