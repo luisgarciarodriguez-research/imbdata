@@ -11,6 +11,28 @@ and upgrades would otherwise receive different rows without notice.
 `STATUS.md` carries the reasoning behind each decision; this file records what
 changed and which datasets it moves.
 
+## [0.3.1] — 2026-09-16
+
+Metadata only: no dataset key changes the data it serves, and no SHA-256
+changes.
+
+### Added
+
+- **A `license` block in all 30 registry entries**, with `name`, `spdx`,
+  `status`, `url`, `restrictions`, `cite`, `checked` and, where needed, `notes`.
+  `status` is `declared` (a standard licence from the owner: 17 datasets),
+  `owner_terms` (the owner's own terms, with no standard licence: 7) or
+  `none_declared` (no licence or terms from the owner: 6). The block records
+  the owner's terms, never a mirror's: the CC0 labels on the Kaggle copies of
+  `cic_ids_2017`, `vehicle_insurance_fraud` and the former `pima_diabetes`
+  upload were applied by uploaders who do not own the data. It records facts,
+  not whether a given use is allowed; each consumer decides that.
+- `info()` returns the block, and `imbdata info` prints it as dotted keys
+  (`license.spdx`, `license.restrictions`, …).
+- A test requiring a valid `license.status` in every bundled entry. The field
+  is deliberately not in `REQUIRED_FIELDS`, so user registries without it still
+  validate.
+
 ## [0.3.0] — 2026-09-14
 
 No existing dataset key changes the data it serves.
@@ -88,6 +110,7 @@ download, deterministic preprocessing, SHA-256 verification and a single
 canonical format: `float64` features plus an `int64` `target` where `0` is the
 majority and `1` the minority, free of missing values and categorical columns.
 
+[0.3.1]: https://github.com/luisgarciarodriguez-research/imbdata/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/luisgarciarodriguez-research/imbdata/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/luisgarciarodriguez-research/imbdata/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/luisgarciarodriguez-research/imbdata/releases/tag/v0.1.0

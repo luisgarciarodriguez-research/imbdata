@@ -16,7 +16,7 @@ X, y = imbdata.load("credit_card_fraud")
 
 - **Author:** Luis García Rodríguez · DCIC, IIMAS-UNAM · CVU 905206 · ORCID [0009-0004-9514-5508](https://orcid.org/0009-0004-9514-5508)
 - **Advisor:** Dr. José Antonio Neme Castillo · Anomalocaris, IIMAS-UNAM
-- **Version:** 0.3.0 · **License:** MIT
+- **Version:** 0.3.1 · **License:** MIT
 
 ---
 
@@ -183,6 +183,13 @@ file URLs, and the binarization, encoding, and imputation rules for each.
 
 All 30 are implemented and cached; `imbdata verify` reports 30 OK.
 
+Each entry's `license` block (also returned by `imbdata.info()`) records the
+terms set by the data's owner, not by a mirror: `status` is `declared`,
+`owner_terms` or `none_declared`, alongside the SPDX identifier, restrictions,
+requested citation and the date checked. It records facts, not a verdict on
+whether a use is allowed, and `imbdata` does not redistribute any data: every
+file is downloaded from its source to your local store.
+
 Sources that need credentials or a manual step are handled as follows:
 
 - **Kaggle** datasets use the `kaggle` CLI with `~/.kaggle/kaggle.json`. An
@@ -257,4 +264,5 @@ dataset table are tracked in [`STATUS.md`](STATUS.md).
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE).
+MIT — see [`LICENSE`](LICENSE). The license covers the code only; each dataset
+keeps its own terms, recorded in its `license` block.

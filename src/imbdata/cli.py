@@ -19,7 +19,7 @@ Author:
     CVU: 905206 · ORCID: 0009-0004-9514-5508
 
 Project:
-    imbdata v0.3.0 — Imbalanced Classification Dataset Repository
+    imbdata v0.3.1 — Imbalanced Classification Dataset Repository
     Advisor: Dr. José Antonio Neme Castillo
     Research Group: Anomalocaris
 """
@@ -183,6 +183,9 @@ class CLI:
     def cmd_info(self, args: argparse.Namespace) -> int:
         """Print a dataset's metadata as aligned key/value lines.
 
+        Nested blocks such as ``license`` are flattened into dotted keys
+        (``license.spdx``) so that each field stays on its own line.
+
         Args:
             args: Parsed arguments carrying ``name`` and ``variant``.
 
@@ -190,8 +193,14 @@ class CLI:
             The process exit code.
         """
         details = self.service.info(args.name, args.variant)
-        width = max(len(key) for key in details)
+        lines: list[tuple[str, object]] = []
         for key, value in details.items():
+            if isinstance(value, dict):
+                lines.extend((f"{key}.{field}", item) for field, item in value.items())
+            else:
+                lines.append((key, value))
+        width = max(len(key) for key, _ in lines)
+        for key, value in lines:
             print(f"{key:<{width}} : {value}")
         return EXIT_OK
 

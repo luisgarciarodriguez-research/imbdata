@@ -14,7 +14,7 @@ Author:
     CVU: 905206 · ORCID: 0009-0004-9514-5508
 
 Project:
-    imbdata v0.3.0 — Imbalanced Classification Dataset Repository
+    imbdata v0.3.1 — Imbalanced Classification Dataset Repository
     Advisor: Dr. José Antonio Neme Castillo
     Research Group: Anomalocaris
 """
@@ -140,6 +140,29 @@ def test_info_reports_registry_metadata_without_downloading() -> None:
     assert details["domain"] == "financial_fraud"
     assert details["source"] == "kaggle"
     assert "name" in details and details["name"] == "paysim"
+
+
+def test_info_exposes_the_license_block() -> None:
+    """The registry's `license` block reaches info() unchanged."""
+    details = imbdata.info("credit_card_fraud")
+    assert details["license"]["spdx"] == "DbCL-1.0"
+    assert details["license"]["status"] == "declared"
+
+
+def test_info_returns_a_license_callers_cannot_mutate() -> None:
+    """Editing the returned block, list included, leaves the registry intact."""
+    imbdata.info("baf")["license"]["restrictions"].append("tampered")
+    assert "tampered" not in imbdata.info("baf")["license"]["restrictions"]
+
+
+def test_info_omits_license_when_the_registry_declares_none(
+    temp_store: StoreConfig, synthetic_registry_file: Path
+) -> None:
+    """A user registry without `license` is served without the key, not rejected."""
+    service = DatasetService(
+        config=temp_store, registry=DatasetRegistry(synthetic_registry_file)
+    )
+    assert "license" not in service.info("alpha_set")
 
 
 def test_info_on_unknown_dataset_raises() -> None:

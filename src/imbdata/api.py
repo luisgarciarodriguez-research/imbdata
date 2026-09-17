@@ -19,13 +19,14 @@ Author:
     CVU: 905206 · ORCID: 0009-0004-9514-5508
 
 Project:
-    imbdata v0.3.0 — Imbalanced Classification Dataset Repository
+    imbdata v0.3.1 — Imbalanced Classification Dataset Repository
     Advisor: Dr. José Antonio Neme Castillo
     Research Group: Anomalocaris
 """
 
 from __future__ import annotations
 
+import copy
 import logging
 from pathlib import Path
 from typing import Any
@@ -133,7 +134,8 @@ class DatasetService:
 
         Returns:
             Mapping with ``name``, ``domain``, ``source``, ``status``,
-            ``is_cached``, ``store_path``, and — when cached — ``N``, ``d``,
+            ``is_cached``, ``store_path``, the registry's ``notes`` and
+            ``license`` blocks when declared, and — when cached — ``N``, ``d``,
             ``n_minority``, ``n_majority``, ``IR``, ``minority_pct``, and the
             recorded ``sha256``.
 
@@ -156,6 +158,9 @@ class DatasetService:
         }
         if meta.get("notes"):
             result["notes"] = meta["notes"]
+        if meta.get("license"):
+            # Deep copy: the block nests a list, and the registry's copy is shallow.
+            result["license"] = copy.deepcopy(meta["license"])
 
         if processed.is_file():
             result.update(self._cached_statistics(processed))

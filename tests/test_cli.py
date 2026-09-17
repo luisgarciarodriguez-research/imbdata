@@ -12,7 +12,7 @@ Author:
     CVU: 905206 · ORCID: 0009-0004-9514-5508
 
 Project:
-    imbdata v0.3.0 — Imbalanced Classification Dataset Repository
+    imbdata v0.3.1 — Imbalanced Classification Dataset Repository
     Advisor: Dr. José Antonio Neme Castillo
     Research Group: Anomalocaris
 """
@@ -74,6 +74,16 @@ def test_info_prints_metadata(cli: CLI, capsys: pytest.CaptureFixture[str]) -> N
     """`imbdata info` prints aligned key/value metadata lines."""
     assert cli.run(["info", "spambase"]) == EXIT_OK
     assert "digital_communications" in capsys.readouterr().out
+
+
+def test_info_prints_the_license_block_as_dotted_keys(
+    cli: CLI, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`imbdata info` shows each license field on its own line."""
+    assert cli.run(["info", "ieee_cis_fraud"]) == EXIT_OK
+    output = capsys.readouterr().out
+    assert "license.status" in output and "owner_terms" in output
+    assert "no_redistribution" in output
 
 
 def test_info_on_unknown_dataset_exits_with_error(

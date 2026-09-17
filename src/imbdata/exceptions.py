@@ -12,7 +12,7 @@ Author:
     CVU: 905206 · ORCID: 0009-0004-9514-5508
 
 Project:
-    imbdata v0.3.0 — Imbalanced Classification Dataset Repository
+    imbdata v0.3.1 — Imbalanced Classification Dataset Repository
     Advisor: Dr. José Antonio Neme Castillo
     Research Group: Anomalocaris
 """

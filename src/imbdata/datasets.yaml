@@ -18,6 +18,17 @@ credit_card_fraud:
   encoding: none  # all numeric (PCA-transformed)
   imputation: none  # no missing values
   notes: "PCA-transformed V1–V28. Only Time and Amount are original."
+  license:
+    name: DbCL 1.0
+    spdx: DbCL-1.0
+    status: declared
+    url: https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud
+    restrictions: []
+    cite: "Dal Pozzolo, Caelen, Johnson and Bontempi (2015), IEEE CIDM"
+    notes: "Owner: the Machine Learning Group of ULB with Worldline, who collected the
+      data. DbCL covers the contents of a database released under ODbL, so an
+      ODbL attribution notice is advisable."
+    checked: "2026-09-16"
 
 paysim:
   domain: financial_fraud
@@ -34,6 +45,16 @@ paysim:
   imputation: none
   temporal_column: step
   notes: "Synthetic. Only TRANSFER and CASH_OUT have fraud. step = temporal ordering."
+  license:
+    name: CC BY-SA 4.0
+    spdx: CC-BY-SA-4.0
+    status: declared
+    url: https://www.kaggle.com/datasets/ealaxi/paysim1
+    restrictions: [share_alike]
+    cite: "Lopez-Rojas, Elmir and Axelsson (2016)"
+    notes: "Owner taken from the Kaggle dataset metadata (the uploading account); not
+      cross-checked against an independent source."
+    checked: "2026-09-16"
 
 ieee_cis_fraud:
   domain: financial_fraud
@@ -50,6 +71,18 @@ ieee_cis_fraud:
   imputation: median  # high percentage of missing values
   temporal_column: TransactionDT
   notes: "Join Transaction + Identity on TransactionID. 434 features after join. High missingness."
+  license:
+    name: Kaggle competition rules (IEEE-CIS / Vesta)
+    spdx: null
+    status: owner_terms
+    url: https://www.kaggle.com/competitions/ieee-fraud-detection/rules
+    restrictions: [non_commercial, no_redistribution]
+    cite: null
+    notes: "Section 7.A limits use to 'non-commercial purposes only, including ...
+      academic research and education'; section 7.B forbids redistributing
+      the data. Each user must accept the rules on Kaggle before
+      downloading."
+    checked: "2026-09-16"
 
 elliptic_bitcoin:
   domain: financial_fraud
@@ -69,6 +102,16 @@ elliptic_bitcoin:
   imputation: none
   temporal_column: time_step  # 49 timesteps
   notes: "Use only labeled nodes (46,564 of 203,769). Ignore graph structure for CIPA."
+  license:
+    name: CC BY-NC-ND 4.0
+    spdx: CC-BY-NC-ND-4.0
+    status: declared
+    url: https://www.kaggle.com/datasets/ellipticco/elliptic-data-set
+    restrictions: [non_commercial, no_derivatives]
+    cite: null
+    notes: "Owner taken from the Kaggle dataset metadata (the uploading account); not
+      cross-checked against an independent source."
+    checked: "2026-09-16"
 
 baf:
   domain: financial_fraud
@@ -86,6 +129,16 @@ baf:
   imputation: none
   temporal_column: month  # 8 months, Feb–Sep
   notes: "NeurIPS 2022 benchmark. Base variant. 1M records. Temporal drift built in."
+  license:
+    name: CC BY-NC-SA 4.0
+    spdx: CC-BY-NC-SA-4.0
+    status: declared
+    url: https://www.kaggle.com/datasets/sgpjesus/bank-account-fraud-dataset-neurips-2022
+    restrictions: [non_commercial, share_alike]
+    cite: "Jesus et al. (2022), NeurIPS Datasets and Benchmarks Track"
+    notes: "Owner taken from the Kaggle dataset metadata (the uploading account); not
+      cross-checked against an independent source."
+    checked: "2026-09-16"
 
 # ═══════════════════════════════════════════════════════════════
 # DOMAIN 2: MEDICINE & CLINICAL
@@ -103,6 +156,14 @@ breast_cancer_wisconsin:
   features_drop: [id]
   encoding: none
   imputation: none
+  license:
+    name: CC BY 4.0
+    spdx: CC-BY-4.0
+    status: declared
+    url: https://archive.ics.uci.edu/dataset/17/breast+cancer+wisconsin+diagnostic
+    restrictions: []
+    cite: "doi:10.24432/C5DW2B"
+    checked: "2026-09-16"
   download:
     engine: http
     files:
@@ -126,6 +187,17 @@ pima_diabetes:
     delisted or restricted by its owner; this is not a credentials problem (other Kaggle datasets in
     this registry download fine with the same token). The declared download.mirror is used instead and
     yields the same N=768 with 500/268."
+  license:
+    name: null
+    spdx: null
+    status: none_declared
+    url: https://www.openml.org/d/37
+    restrictions: []
+    cite: "Smith et al. (1988)"
+    notes: "NIDDK published no licence. The dataset was withdrawn from UCI and Kaggle;
+      the CC0 label on the former Kaggle copy (uciml) was applied by the
+      uploader, not the owner."
+    checked: "2026-09-16"
   download:
     engine: kaggle
     slug: uciml/pima-indians-diabetes-database
@@ -163,6 +235,16 @@ tcga_brca:
     as N/minority, and keeps Basal-like as the harder, clinically distinct minority
     that the literature uses. Both projects read the same 826 samples: the four
     subtypes COMIA retains are the complete set with a PAM50 call."
+  license:
+    name: NCI TCGA / GDC open-access policy
+    spdx: null
+    status: owner_terms
+    url: https://gdc.cancer.gov/access-data/data-access-policies
+    restrictions: []
+    cite: "Vasaikar et al. (2018), Nucleic Acids Research (LinkedOmics)"
+    notes: "No publication restrictions on open-access data. Re-identifying participants
+      is prohibited, and publications must acknowledge TCGA."
+    checked: "2026-09-16"
   download:
     engine: http
     files:
@@ -184,6 +266,16 @@ mammography:
   encoding: none
   imputation: none
   notes: "6 features extracted from mammogram images. IR=42:1."
+  license:
+    name: null
+    spdx: null
+    status: none_declared
+    url: https://www.openml.org/d/310
+    restrictions: []
+    cite: "Woods et al. (1993), IJPRAI"
+    notes: "OpenML lists 'Source: Unknown'; the originators (USF / Sandia) published no
+      terms."
+    checked: "2026-09-16"
   download:
     engine: openml
 
@@ -204,6 +296,15 @@ nsl_kdd:
     type: onehot
     columns: [protocol_type, service, flag]
   imputation: none
+  license:
+    name: CIC/UNB dataset terms
+    spdx: null
+    status: owner_terms
+    url: https://www.unb.ca/cic/datasets/nsl.html
+    restrictions: []
+    cite: "Tavallaee, Bagheri, Lu and Ghorbani (2009), IEEE CISDA"
+    notes: "'You may redistribute, republish, and mirror ... must include a citation.'"
+    checked: "2026-09-16"
   download:
     engine: github  # the UNB portal is form-gated; this mirror serves the same files
     files:
@@ -226,6 +327,18 @@ cic_ids_2017:
   notes: "Concatenate all daily CSVs. Remove Inf/NaN rows. Large: ~2.8M rows.
     The UNB portal is registration-gated, so the files come from the Kaggle
     mirror of the MachineLearningCVE daily flow CSVs."
+  license:
+    name: CIC/UNB dataset terms
+    spdx: null
+    status: owner_terms
+    url: https://www.unb.ca/cic/datasets/ids-2017.html
+    restrictions: []
+    cite: "Sharafaldin, Lashkari and Ghorbani (2018), ICISSP"
+    notes: "Redistribution and mirroring are allowed with a citation, per the FAQ at
+      https://www.unb.ca/cic/datasets/index.html. The CC0 label on the Kaggle
+      mirror this registry downloads from was applied by the uploader, who is
+      not the owner."
+    checked: "2026-09-16"
   download:
     engine: kaggle
     slug: chethuhn/network-intrusion-dataset
@@ -248,6 +361,17 @@ unsw_nb15:
     Binary: Normal vs Attack. UNSW's own CloudStor host was decommissioned in
     2023 and the project page no longer links a download, so the files come
     from the Kaggle mirror of the official split."
+  license:
+    name: UNSW-NB15 academic-use grant
+    spdx: null
+    status: owner_terms
+    url: https://research.unsw.edu.au/projects/unsw-nb15-dataset
+    restrictions: [non_commercial]
+    cite: "Moustafa and Slay (2015); Moustafa and Slay (2016); Moustafa et al. (2017),
+      IEEE TBD; Moustafa et al. (2017), Springer; Sarhan et al. (2020)"
+    notes: "'Free use ... for academic research purposes is hereby granted in
+      perpetuity.' Commercial use requires an agreement with the authors."
+    checked: "2026-09-16"
   download:
     engine: kaggle
     slug: mrwellsdavid/unsw-nb15
@@ -299,6 +423,15 @@ cwru_bearing:
     imbdata labels normal=1 (230, minority) and fault=0. Same partition of the
     same rows, labels swapped; IR 9:1, matching COMIA's own convention for its
     other industrial dataset."
+  license:
+    name: null
+    spdx: null
+    status: none_declared
+    url: https://engineering.case.edu/bearingdatacenter
+    restrictions: []
+    cite: "Case Western Reserve University Bearing Data Center website"
+    notes: "No licence, terms or citation request; the cite is the customary reference."
+    checked: "2026-09-16"
   download:
     engine: http
     files:
@@ -380,6 +513,17 @@ seu_gearbox:
     difference, not corruption: confirm it by comparing values rather than
     digests. Measured 2026-09-10; every other dataset, including the MVTS
     extraction of swan_sf, rebuilds bit-identical."
+  license:
+    name: null
+    spdx: null
+    status: none_declared
+    url: https://github.com/cathysiyu/Mechanical-datasets
+    restrictions: []
+    cite: "Shao, McAleer, Yan and Baldi (2019), IEEE Transactions on Industrial
+      Informatics"
+    notes: "The repository has no LICENSE file; the MLMechanics portal at UCI only asks
+      for a citation."
+    checked: "2026-09-16"
   download:
     engine: github
     files:
@@ -419,6 +563,14 @@ secom:
     method: median
     drop_threshold: 0.50  # drop features with >50% missing
   notes: "590 features, ~4.4% missing. d >> N regime. Record final d in manifest."
+  license:
+    name: CC BY 4.0
+    spdx: CC-BY-4.0
+    status: declared
+    url: https://archive.ics.uci.edu/dataset/179/secom
+    restrictions: []
+    cite: "doi:10.24432/C54305"
+    checked: "2026-09-16"
   download:
     engine: http
     files:
@@ -442,6 +594,17 @@ svmguide1:
   imputation: none
   notes: "Train (3,089) + test (4,000) concatenated to the benchmark N=7,089, d=4.
     Observed IR is 1.29:1, not the 3.07:1 quoted in PLAN.md; see STATUS.md."
+  license:
+    name: null
+    spdx: null
+    status: none_declared
+    url: https://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary.html
+    restrictions: []
+    cite: "Chang and Lin (2011); Hsu, Chang and Lin, A Practical Guide to Support Vector
+      Classification"
+    notes: "LIBSVM only asks for a citation and defers to the rights of the original
+      source (Jan Conrad, Uppsala University), which published no terms."
+    checked: "2026-09-16"
   download:
     engine: http
     files:
@@ -463,6 +626,14 @@ yeast_me3:
   imputation: none
   notes: "N=1,484, d=8, 163 ME3 rows, IR 8.1:1 (KEEL yeast3). PLAN.md quotes
     IR 28:1, which is the ME2 variant (KEEL yeast4, 51 rows); see STATUS.md."
+  license:
+    name: CC BY 4.0
+    spdx: CC-BY-4.0
+    status: declared
+    url: https://archive.ics.uci.edu/dataset/110/yeast
+    restrictions: []
+    cite: "doi:10.24432/C5KG68"
+    checked: "2026-09-16"
   download:
     engine: http
     files:
@@ -482,6 +653,14 @@ ecoli_imu:
   encoding: none
   imputation: none
   notes: "Reproduces the KEEL ecoli3 benchmark: N=336, d=7, 35 imU rows, IR 8.6:1."
+  license:
+    name: CC BY 4.0
+    spdx: CC-BY-4.0
+    status: declared
+    url: https://archive.ics.uci.edu/dataset/39/ecoli
+    restrictions: []
+    cite: "doi:10.24432/C5388M"
+    checked: "2026-09-16"
   download:
     engine: http
     files:
@@ -506,6 +685,17 @@ vehicle_insurance_fraud:
     type: onehot
     columns: [Make, AccidentArea, Sex, MaritalStatus, Fault, PolicyType, VehicleCategory, VehiclePrice, Days_Policy_Accident, Days_Policy_Claim, PastNumberOfClaims, AgeOfVehicle, AgeOfPolicyHolder, PoliceReportFiled, WitnessPresent, AgentType, NumberOfSuppliments, AddressChange_Claim, NumberOfCars, BasePolicy]
   imputation: none
+  license:
+    name: null
+    spdx: null
+    status: none_declared
+    url: https://www.kaggle.com/datasets/shivamb/vehicle-claim-fraud-detection
+    restrictions: []
+    cite: "Phua, Alahakoon and Lee (2004)"
+    notes: "Sample data shipped with Angoss KnowledgeSeeker, later an Oracle demo, with
+      no terms from the owner. The CC0 label on the Kaggle copy was applied
+      by the uploader, not the owner."
+    checked: "2026-09-16"
 
 # ═══════════════════════════════════════════════════════════════
 # DOMAIN 7: TELECOMMUNICATIONS
@@ -522,6 +712,14 @@ iranian_churn:
   features_drop: []
   encoding: none  # verify; may have categorical columns
   imputation: none
+  license:
+    name: CC BY 4.0
+    spdx: CC-BY-4.0
+    status: declared
+    url: https://archive.ics.uci.edu/dataset/563/iranian+churn+dataset
+    restrictions: []
+    cite: "doi:10.24432/C5JW3Z"
+    checked: "2026-09-16"
   download:
     engine: http
     files:
@@ -548,6 +746,16 @@ nasa_pc1:
   imputation: none
   notes: "1,109 modules, 77 defective, IR 13.4:1. Served from OpenML: the GitHub PROMISE mirror ships a
     13,204-row JM1 variant that does not match the PLAN.md table."
+  license:
+    name: PROMISE public release (NASA MDP)
+    spdx: null
+    status: owner_terms
+    url: http://promise.site.uottawa.ca/SERepository
+    restrictions: []
+    cite: "Sayyad Shirabad and Menzies (2005), PROMISE Repository"
+    notes: "PROMISE: 'made publicly available'; NASA: 'authorized for publication'. Not
+      public domain: a contractor took part in producing the data."
+    checked: "2026-09-16"
   download:
     engine: openml
 
@@ -566,6 +774,16 @@ nasa_jm1:
   imputation: none
   notes: "10,885 modules, 2,106 defective, IR 4.2:1. Served from OpenML: the GitHub PROMISE mirror ships a
     13,204-row JM1 variant that does not match the PLAN.md table."
+  license:
+    name: PROMISE public release (NASA MDP)
+    spdx: null
+    status: owner_terms
+    url: http://promise.site.uottawa.ca/SERepository
+    restrictions: []
+    cite: "Sayyad Shirabad and Menzies (2005), PROMISE Repository"
+    notes: "PROMISE: 'made publicly available'; NASA: 'authorized for publication'. Not
+      public domain: a contractor took part in producing the data."
+    checked: "2026-09-16"
   download:
     engine: openml
 
@@ -596,6 +814,15 @@ swan_sf:
     filed under FL/ (M and X flares) and NF/ (FQ, B and C). Partition 1 alone holds
     73,494 instances with 1,255 M+X, i.e. IR 57.6:1, which matches the ~60:1 of the
     PLAN.md table; the N≈4,075 of that table matches no partition-level reading."
+  license:
+    name: CC0 1.0
+    spdx: CC0-1.0
+    status: declared
+    url: https://doi.org/10.7910/DVN/EBCFKM
+    restrictions: []
+    cite: "doi:10.7910/DVN/EBCFKM"
+    notes: "Declared on Harvard Dataverse."
+    checked: "2026-09-16"
   download:
     engine: dataverse
     doi: doi:10.7910/DVN/EBCFKM
@@ -631,6 +858,14 @@ spambase:
   features_drop: []
   encoding: none  # 57 continuous features
   imputation: none
+  license:
+    name: CC BY 4.0
+    spdx: CC-BY-4.0
+    status: declared
+    url: https://archive.ics.uci.edu/dataset/94/spambase
+    restrictions: []
+    cite: "doi:10.24432/C53G6X"
+    checked: "2026-09-16"
   download:
     engine: http
     files:
@@ -660,6 +895,14 @@ ozone_level:
     the standard in force since the EPA revoked the 1-hour one in 2005, is kept
     as a variant. The pair isolates the effect of IR with every feature held
     constant."
+  license:
+    name: CC BY 4.0
+    spdx: CC-BY-4.0
+    status: declared
+    url: https://archive.ics.uci.edu/dataset/172/ozone+level+detection
+    restrictions: []
+    cite: "doi:10.24432/C5NG6W"
+    checked: "2026-09-16"
   download:
     engine: http
     files:
@@ -681,6 +924,14 @@ adult_census:
     type: onehot
     columns: [workclass, education, marital-status, occupation, relationship, race, sex, native-country]
   imputation: mode  # missing values marked as ' ?' in categorical columns
+  license:
+    name: CC BY 4.0
+    spdx: CC-BY-4.0
+    status: declared
+    url: https://archive.ics.uci.edu/dataset/2/adult
+    restrictions: []
+    cite: "doi:10.24432/C5XW20"
+    checked: "2026-09-16"
   download:
     engine: http
     files:
@@ -699,6 +950,14 @@ wine_quality_red:
   features_drop: []
   encoding: none  # 11 continuous physicochemical features
   imputation: none
+  license:
+    name: CC BY 4.0
+    spdx: CC-BY-4.0
+    status: declared
+    url: https://archive.ics.uci.edu/dataset/186/wine+quality
+    restrictions: []
+    cite: "doi:10.24432/C56S3T"
+    checked: "2026-09-16"
   download:
     engine: http
     files:
@@ -725,6 +984,14 @@ wine_quality_white:
     wine file in the same UCI archive keeps the KEEL quality=8 convention;
     applied here it would give 175 minority rows (IR 27:1), and the top grade
     alone (quality=9) only 5."
+  license:
+    name: CC BY 4.0
+    spdx: CC-BY-4.0
+    status: declared
+    url: https://archive.ics.uci.edu/dataset/186/wine+quality
+    restrictions: []
+    cite: "doi:10.24432/C56S3T"
+    checked: "2026-09-16"
   download:
     engine: http
     files:
@@ -745,6 +1012,14 @@ abalone_19:
     type: ordinal
     columns: [sex]  # M=0, F=1, I=2
   imputation: none
+  license:
+    name: CC BY 4.0
+    spdx: CC-BY-4.0
+    status: declared
+    url: https://archive.ics.uci.edu/dataset/1/abalone
+    restrictions: []
+    cite: "doi:10.24432/C55C7W"
+    checked: "2026-09-16"
   download:
     engine: http
     files:
@@ -775,6 +1050,14 @@ satimage:
     sat.trn and testing once on sat.tst rather than cross-validating; that
     split is not preserved here. OpenML's copies disagree with the source
     (id=182 serves 6,430 rows), so the files come from the UCI archive."
+  license:
+    name: CC BY 4.0
+    spdx: CC-BY-4.0
+    status: declared
+    url: https://archive.ics.uci.edu/dataset/146/statlog+landsat+satellite
+    restrictions: []
+    cite: "doi:10.24432/C55887"
+    checked: "2026-09-16"
   download:
     engine: http
     files:

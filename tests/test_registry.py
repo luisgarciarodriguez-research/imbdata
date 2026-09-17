@@ -11,7 +11,7 @@ Author:
     CVU: 905206 · ORCID: 0009-0004-9514-5508
 
 Project:
-    imbdata v0.3.0 — Imbalanced Classification Dataset Repository
+    imbdata v0.3.1 — Imbalanced Classification Dataset Repository
     Advisor: Dr. José Antonio Neme Castillo
     Research Group: Anomalocaris
 """
@@ -26,6 +26,8 @@ from imbdata.exceptions import DatasetNotFoundError, RegistryError
 from imbdata.registry import DatasetRegistry, get_dataset_meta, get_registry
 
 EXPECTED_DATASET_COUNT = 30
+LICENSE_STATUSES = {"declared", "owner_terms", "none_declared"}
+LICENSE_RESTRICTIONS = {"non_commercial", "no_derivatives", "share_alike", "no_redistribution"}
 
 
 def test_bundled_registry_declares_all_datasets() -> None:
@@ -38,6 +40,24 @@ def test_bundled_registry_declares_all_datasets() -> None:
 def test_validate_bundled_registry_passes() -> None:
     """Every bundled entry declares the mandatory metadata fields."""
     assert DatasetRegistry().validate() is True
+
+
+def test_every_bundled_dataset_declares_its_license() -> None:
+    """Each bundled entry records a valid license status and known restrictions.
+
+    Enforced here rather than through REQUIRED_FIELDS, so that a user registry
+    without `license` blocks still validates.
+    """
+    problems = {}
+    for key, meta in DatasetRegistry().entries.items():
+        license_ = meta.get("license") or {}
+        if license_.get("status") not in LICENSE_STATUSES:
+            problems[key] = f"status={license_.get('status')!r}"
+        elif not set(license_.get("restrictions", [])) <= LICENSE_RESTRICTIONS:
+            problems[key] = f"restrictions={license_['restrictions']!r}"
+        elif license_["status"] == "declared" and not license_.get("spdx"):
+            problems[key] = "declared without an SPDX identifier"
+    assert problems == {}
 
 
 def test_get_known_key_returns_metadata(synthetic_registry_file: Path) -> None:

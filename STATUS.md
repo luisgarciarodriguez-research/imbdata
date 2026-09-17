@@ -1,16 +1,19 @@
 # STATUS — imbdata
 
-## Último reporte: 2026-09-16 — Fase B cerrada en cipa-extended
+## Último reporte: 2026-09-16 — Versión 0.3.1: licencias en el registro
 
 ### Estado actual
 - Fase: Fase A de ampliación del registro **completa y publicada** (A1 y A2,
   tag `v0.3.0` en origin); A3 pospuesta; Fase B en cipa-extended **completa**
   (`c2d43e0`, 2026-09-15)
 - Módulos: 9/9 implementados
-- Tests: **225 pasando** en la corrida rápida (~3 s) + **19 marcados `slow`** (244 en total)
+- Tests: **230 pasando** en la corrida rápida (~3 s) + **19 marcados `slow`** (249 en total)
 - Datasets: **30/30 funcionales**, 15 dominios
 - Store: ~13 GB en `~/.imbdata`
-- Versión: **0.3.0** (ver `CHANGELOG.md`)
+- Versión: **0.3.1** preparada (ver `CHANGELOG.md`); falta commit y tag `v0.3.1`.
+  Solo agrega metadatos: ningún dataset cambia sus datos ni su SHA-256
+- Licencias: bloque `license` en las 30 entradas (17 `declared`, 7 `owner_terms`,
+  6 `none_declared`), expuesto por `info()`
 - Bloqueantes: **ninguno**. cipa-extended fija `imbdata>=0.3,<0.4` y su contrato
   de datos está congelado contra 0.3.0
 - Salvedad conocida: `seu_gearbox` no reproduce bit a bit entre versiones
@@ -319,9 +322,31 @@ miles de niveles.
    Historial de 2026-09-16.
 5. **Pendiente: partición oficial de `nsl_kdd`** (A3, pospuesta el 2026-09-14).
    Exponer `KDDTest+` como variante con ataque=1 viola el contrato canónico,
-   porque ahí los ataques son mayoría. Decidirla junto con la compuerta G1 y,
-   por el mismo criterio, la partición `sat.trn`/`sat.tst` de `satimage`.
-   Ver el Historial de esa fecha.
+   porque ahí los ataques son mayoría. Por el mismo criterio queda pendiente la
+   partición `sat.trn`/`sat.tst` de `satimage`. La G1 de cipa-extended ya no la
+   necesita (resolvió su D1 por la opción (b)), así que A3 queda como mejora
+   propia de imbdata. Ver el Historial del 2026-09-14.
+6. **Tras publicar `v0.3.1`:** cipa-extended vuelve a congelar su contrato
+   (`make update-contract`, después de reinstalar imbdata 0.3.1 en el `base`).
+   El diff debe mostrar **solo** `imbdata_version`.
+7. **Pendientes de la revisión de licencias (2026-09-16), sin resolver:**
+   1. **`unsw_nb15`:** la nota del registro dice que la página del proyecto ya
+      no enlaza descarga, y es falso: enlaza una carpeta de OneDrive de UNSW con
+      los CSV oficiales. Además, en `~/.imbdata/raw/unsw_nb15/`
+      `UNSW_NB15_training-set.csv` tiene 82,332 filas y `testing-set` 175,341
+      (verificado con `wc -l`). Los nombres parecen **cruzados** respecto de la
+      partición documentada. No afecta al conjunto fusionado que se sirve, pero
+      sí a A3.
+   2. **`nsl_kdd`:** `github.com/defcom17/NSL_KDD` redirige ahora a
+      `github.com/Jehuty4949/NSL_KDD`. La URL raw del registro sigue
+      respondiendo, pero depende de esa redirección.
+   3. **`pima_diabetes`:** OpenML id 37 es un respaldo más citable que el espejo
+      de plotly. Pero usa otros nombres de columna y otras etiquetas
+      (`tested_positive`/`tested_negative`): antes de adoptarlo hay que verificar
+      que el parquet procesado conserve su SHA-256.
+   4. **`_preprocess_nsl_kdd`:** si falta `KDDTest+.txt`, sirve solo el train
+      sin avisar (`preprocess.py`, `if test_file.is_file()`). El mismo patrón
+      aparece en `_preprocess_adult_census` con `adult.test`.
 
 ### Notas de implementación
 - **Entorno:** se creó `.venv` en la raíz. El entorno conda `base` tiene
@@ -345,6 +370,55 @@ miles de niveles.
 ---
 
 ## Historial
+
+### 2026-09-16 — Versión 0.3.1: licencias de los 30 datasets
+Origen: la compuerta G1 de cipa-extended, criterio (v). La evidencia, con las
+cláusulas textuales, está en `cipa-extended/results/gate_g1_decision.md`,
+§5.1–§5.3.
+
+**Qué cambia en imbdata.** Cada entrada de `datasets.yaml` trae un bloque
+`license` con `name`, `spdx`, `status`, `url`, `restrictions`, `cite`,
+`checked` y, donde hace falta, `notes`. `info()` lo devuelve e `imbdata info`
+lo imprime como claves con punto. Una prueba exige un `license.status` válido en
+todas las entradas empaquetadas. No se agregó a `REQUIRED_FIELDS`, para no
+romper los registros de usuario que no lo declaren. Para 0.3.1 no se tocó
+ningún otro campo del registro, y el preprocesamiento no lee el bloque.
+
+**Criterios del registro.**
+- imbdata registra hechos, no veredictos. «Compatible» depende del uso de cada
+  consumidor, así que el veredicto de cipa-extended va aquí y no en el YAML.
+- Rige la licencia del titular, no la del espejo. Las etiquetas CC0 de las
+  copias de Kaggle de `cic_ids_2017`, `vehicle_insurance_fraud` y la antigua de
+  `pima_diabetes` las puso quien subió los datos, no el dueño. Se anotan en
+  `notes`, pero no se registran como licencia.
+- En `paysim`, `elliptic_bitcoin` y `baf`, la titularidad sale de la metadata
+  de Kaggle y no se contrastó con una fuente independiente. Queda anotado en
+  cada entrada.
+
+**Decisión de un consumidor, no del paquete.** La G1 de cipa-extended evaluó el
+criterio (v) con el **estándar de uso**: un dataset es compatible si sus
+términos permiten usarlo en investigación y publicar resultados derivados. Su
+archivo en Zenodo no contendrá datos.
+
+**Resultado sobre los 30:** 24 con licencia o términos explícitos, 6
+`none_declared` y 0 incompatibles.
+
+**Decisión (i) sobre los `none_declared`.** cipa-extended conserva los que el
+creador publicó para investigación: `svmguide1`, `seu_gearbox`, `mammography`,
+`pima_diabetes` y `vehicle_insurance_fraud`. En el manuscrito los declara, con
+`vehicle_insurance_fraud` como el caso más débil. El sexto, `cwru_bearing`,
+quedó fuera por otra razón (criterio iv). A la fecha, `gate_g1_decision.md`
+sigue sin firmar: las decisiones están tomadas, pero falta la firma.
+
+**Consecuencia para imbdata.** `none_declared` es información, no un error. Cada
+consumidor decide con su propio estándar.
+
+**Versión.** Agregar metadatos no cambia los datos servidos, así que, según la
+política del CHANGELOG, no es ruptura: corresponde **0.3.1**. cipa-extended
+conserva su pin `>=0.3,<0.4`.
+
+La revisión dejó cuatro hallazgos que no se resolvieron aquí. Están en
+Siguientes pasos, punto 7.
 
 ### 2026-09-16 — Fase B cerrada en cipa-extended
 La entrada anterior la daba por «sin empezar», pero cipa-extended adoptó 0.3.0
