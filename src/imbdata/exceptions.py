@@ -12,7 +12,7 @@ Author:
     CVU: 905206 · ORCID: 0009-0004-9514-5508
 
 Project:
-    imbdata v0.3.1 — Imbalanced Classification Dataset Repository
+    imbdata v0.4.0 — Imbalanced Classification Dataset Repository
     Advisor: Dr. José Antonio Neme Castillo
     Research Group: Anomalocaris
 """
@@ -26,6 +26,7 @@ __all__ = [
     "IntegrityError",
     "PreprocessingError",
     "RegistryError",
+    "NotAFraudDatasetError",
     "CredentialsError",
 ]
 
@@ -56,3 +57,11 @@ class PreprocessingError(ImbdataError):
 
 class IntegrityError(ImbdataError):
     """Raised when SHA-256 verification fails."""
+
+
+class NotAFraudDatasetError(ImbdataError):
+    """Raised when a registered dataset declares no ``fraud`` block.
+
+    The dataset exists and ``imbdata.load`` serves it; it simply carries no
+    per-row fraud context, so :mod:`imbdata.fraud` cannot serve it.
+    """

@@ -3,7 +3,7 @@
 **Purpose:** Centralized local repository for downloading, versioning, preprocessing,
 and serving imbalanced classification benchmark datasets across multiple research projects.
 **Author:** Luis García Rodríguez · IIMAS-UNAM · CVU 905206
-**Version:** 0.3.1
+**Version:** 0.4.0
 **License:** MIT
 
 ---
@@ -132,7 +132,7 @@ Author:
     CVU: 905206 · ORCID: 0009-0004-9514-5508
 
 Project:
-    imbdata v0.3.1 — Imbalanced Classification Dataset Repository
+    imbdata v0.4.0 — Imbalanced Classification Dataset Repository
     Advisor: Dr. José Antonio Neme Castillo
     Research Group: Anomalocaris
 \"\"\"
@@ -329,8 +329,17 @@ imbdata/
 └── processed/
     ├── credit_card_fraud.parquet
     ├── paysim.parquet
-    └── ...
+    ├── ...
+    └── fraud/                    # fraud endpoint artefacts (0.4.0)
+        ├── paysim.context.parquet
+        ├── elliptic_bitcoin.context.parquet
+        ├── elliptic_bitcoin.nodes.parquet
+        └── elliptic_bitcoin.edges.parquet
 ```
+
+`manifest.json` records the fraud artefacts under the `fraud/<key>.<part>`
+namespace, so `imbdata.verify()` keeps reporting exactly the canonical
+datasets and `fraud.verify()` reports the artefacts.
 
 ---
 
@@ -367,12 +376,38 @@ imbdata.store_path()
 
 # Filter datasets
 financial = imbdata.list_datasets(domain="financial_fraud")
-# → ['baf', 'credit_card_fraud', 'elliptic_bitcoin', 'ieee_cis_fraud', 'paysim']
+# → ['baf', 'credit_card_fraud', 'elliptic_bitcoin', 'ieee_cis_fraud', 'paysim', 'saml_d']
 
 # Verify integrity of all cached datasets
 report = imbdata.verify()
 # → {'credit_card_fraud': 'OK', 'paysim': 'OK', ...}
 ```
+
+### Fraud endpoint (0.4.0)
+
+A parallel surface for the datasets that declare a `fraud:` block. It serves
+the per-row facts the canonical format drops — when, how much, who paid whom,
+and under which typology — without changing that format or any dataset's data.
+
+```python
+from imbdata import fraud
+
+fraud.list_datasets()
+# → ['credit_card_fraud', 'elliptic_bitcoin', 'ieee_cis_fraud', 'paysim', 'saml_d']
+
+ds = fraud.load("paysim")          # FraudDataset (frozen dataclass)
+ds.X, ds.y                         # identical to imbdata.load("paysim")
+ds.context                         # one row per row of X, fixed schema
+ds.nodes, ds.edges                 # transaction graphs only (Elliptic); else None
+ds.meta                            # fraud.info(name)
+
+fraud.info("saml_d")["fraud"]      # the registry block
+fraud.ensure()                     # build every context artefact
+fraud.verify()                     # {'fraud/paysim.context': 'OK', ...}
+```
+
+A registered dataset with no `fraud:` block raises `NotAFraudDatasetError`; an
+unregistered key still raises `DatasetNotFoundError`.
 
 ---
 
@@ -389,7 +424,7 @@ This format contract is the interface between `imbdata` and all consumer project
 
 ---
 
-## Dataset Registry (30 datasets, 15 domains)
+## Dataset Registry (31 datasets, 15 domains)
 
 | # | Key | Domain | N | d | IR | Source |
 |---|-----|--------|---|---|-----|--------|
@@ -423,6 +458,7 @@ This format contract is the interface between `imbdata` and all consumer project
 | 28 | abalone_19 | marine_biology | 4,177 | 8 | 130:1 | UCI |
 | 29 | wine_quality_white | food_agriculture | 4,898 | 11 | 25.8:1 | UCI |
 | 30 | satimage | remote_sensing | 6,435 | 36 | 9.3:1 | UCI |
+| 31 | saml_d | financial_fraud | 9,504,852 | 71 | 961.7:1 | Kaggle |
 
 Domains: financial_fraud, medicine, cybersecurity, manufacturing, bioinformatics,
 insurance, telecommunications, software_engineering, space_weather,
@@ -478,6 +514,78 @@ X, y = imbdata.load("tcga_brca", variant="full")
 ```
 
 Variants are stored as separate parquet files: `tcga_brca.parquet`, `tcga_brca__full.parquet`.
+
+---
+
+## Fraud Context Format (0.4.0)
+
+The canonical format is the contract for *features*. The fraud context is the
+contract for the *facts about a transaction* that the canonical format cannot
+carry: it is a parallel parquet, aligned row by row with the canonical frame,
+served only through `imbdata.fraud`.
+
+### `context` — fixed schema, one row per row of `X`
+
+| Column | dtype | Meaning |
+|--------|-------|---------|
+| `t` | `float64`, never null | Native time value, identical to the temporal column of `X` |
+| `t_seconds` | `float64` | `t` in seconds, same origin; `NaN` when the unit has no published duration |
+| `event_time` | `datetime64[ns]` | Calendar instant, only when the block says `calendar: true`; `NaT` otherwise |
+| `amount` | `float64` | Native amount; `NaN` when the dataset publishes none |
+| `currency` | `string` | Per-row currency, only where the dataset publishes one |
+| `src_id` | `Int64` | Payer, encoded |
+| `dst_id` | `Int64` | Payee, encoded in the **same** space as `src_id` |
+| `entity_id` | `Int64` | Native per-row entity, when the dataset declares one |
+| `node_id` | `Int64` | Node identifier when the row is a graph node (Elliptic `txId`) |
+| `typology` | `string` | Native typology (SAML-D `Laundering_type`) |
+
+**`typology` is derived from the label. It is served for stratification and
+error analysis and must never be used as a feature.**
+
+Identifiers are encoded with `pandas.factorize(sort=True)` over the union of
+payer and payee values, so one account keeps one code on both sides and the
+codes do not depend on row order. No randomness is involved.
+
+### `fraud:` block in `datasets.yaml`
+
+```yaml
+fraud:
+  time:
+    column: step          # the temporal column of X
+    unit: hour            # second | hour | step
+    calendar: false       # true only when `t` is an absolute calendar instant
+    origin: simulation_start
+  amount:
+    column: amount        # or the whole block is null
+    currency: null        # a column name where the dataset publishes one
+  graph:                  # null, or:
+    kind: account         # account: src/dst columns; transaction: an edge file
+    src: nameOrig
+    dst: nameDest
+  entity: nameOrig        # or null
+  synthetic: true
+  typology: null          # a column name, or absent
+  drift_provenance: null  # researcher_constructed, or absent
+```
+
+`time.column`, `time.unit`, `time.calendar`, `amount`, `graph`, `entity` and
+`synthetic` are mandatory once the block exists; the enumerations above are
+validated by `DatasetRegistry.validate()`. `drift_provenance: null` means
+`imbdata` declares nothing about drift — **not** that there is none.
+
+### Graph datasets
+
+Where the rows are the edges (PaySim, SAML-D), `src_id`/`dst_id` in `context`
+are the whole graph and no extra table is served. Where the rows are nodes
+(Elliptic), two more artefacts are:
+
+| Artefact | Columns | Content |
+|----------|---------|---------|
+| `nodes` | `node_id`, `t`, `label`, `row` | **Every** node, unlabelled ones included. `label` is `1` illicit, `0` licit, `<NA>` unknown; `row` is the node's position in `X`, `<NA>` when it has no label |
+| `edges` | `src_node`, `dst_node`, `src_row`, `dst_row` | **Every** edge, including those reaching unlabelled nodes |
+
+Unlabelled nodes stay because the structure a consumer measures depends on
+them, while `X`, `y` and `context` keep only the labelled rows.
 
 ---
 
@@ -634,7 +742,7 @@ de cada reporte. El archivo es acumulativo (log de reportes, más reciente arrib
 > python -c "
 > import imbdata
 > ds = imbdata.list_datasets()
-> assert len(ds) == 30, f'Expected 30, got {len(ds)}'
+> assert len(ds) == 31, f'Expected 31, got {len(ds)}'
 > for name in ds:
 >     X, y = imbdata.load(name)
 >     assert set(y.unique()) == {0, 1}, f'{name}: target not binary'
@@ -712,6 +820,21 @@ Adding a new dataset requires only:
 4. Commit → version bump
 
 No consumer project needs any change.
+
+### Enrolling a dataset in the fraud endpoint
+
+1. Split its raw read step into `_read_{key}(raw_dir, meta) -> pd.DataFrame`,
+   returning the native columns in final row order, and rebuild
+   `_preprocess_{key}()` on top of it. Verify that the canonical parquet is
+   still byte-identical (rebuild in a temporary store and compare the SHA-256
+   against `manifest.json`).
+2. Declare a `fraud:` block in its registry entry (see **Fraud Context Format**).
+3. Add `_context_{key}(frame, meta, raw_dir)` to `FraudContextBuilder`, usually
+   a one-line delegation to `_generic_context`, which fills the whole schema
+   from the block.
+4. Run `imbdata fraud download {key}` and `fraud.verify()`.
+
+A dataset without the block is untouched: `imbdata.load` serves it as before.
 
 ---
 

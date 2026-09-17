@@ -21,7 +21,7 @@ Author:
     CVU: 905206 · ORCID: 0009-0004-9514-5508
 
 Project:
-    imbdata v0.3.1 — Imbalanced Classification Dataset Repository
+    imbdata v0.4.0 — Imbalanced Classification Dataset Repository
     Advisor: Dr. José Antonio Neme Castillo
     Research Group: Anomalocaris
 """
@@ -42,6 +42,10 @@ logger = logging.getLogger(__name__)
 
 TARGET_COLUMN = "target"
 PARQUET_COMPRESSION = "snappy"
+
+# Highest cardinality still one-hot encoded. Above it, a declared categorical is
+# ordinal-encoded instead, the criterion that already justifies ieee_cis_fraud.
+ONEHOT_MAX_LEVELS = 50
 MISSING_TOKENS = ("?", "NA", "N/A", "na", "nan", "NaN", "", " ", "-")
 
 # The 43 columns of NSL-KDD's KDDTrain+/KDDTest+ flat files: 41 features, the
@@ -79,7 +83,9 @@ __all__ = [
     "TIME_DOMAIN_STATISTICS",
     "MVTS_STATISTICS",
     "to_numeric_frame",
+    "combine_date_time_epoch",
     "assemble_canonical",
+    "ONEHOT_MAX_LEVELS",
     "DatasetPreprocessor",
     "preprocess_dataset",
 ]
@@ -369,6 +375,44 @@ def to_numeric_frame(df: pd.DataFrame, missing_tokens: Sequence[str] = MISSING_T
             series = series.astype(str).str.strip().replace(list(missing_tokens), np.nan)
         numeric[column] = pd.to_numeric(series, errors="coerce").astype("float64")
     return numeric
+
+
+def combine_date_time_epoch(date: pd.Series, time: pd.Series) -> pd.Series:
+    """Combine a date column and a time-of-day column into Unix seconds.
+
+    SAML-D splits the transaction instant across ``Date`` (``YYYY-MM-DD``) and
+    ``Time`` (``HH:MM:SS``), neither of which is numeric. The canonical format
+    admits no textual column, so the two are folded into one ``float64``
+    column of seconds since the Unix epoch. The dataset declares no time zone;
+    the date is therefore read as UTC, which fixes the origin without moving
+    any instant relative to the others.
+
+    Args:
+        date: Calendar dates, parseable as ``YYYY-MM-DD``.
+        time: Times of day, parseable as ``HH:MM:SS``, aligned with ``date``.
+
+    Returns:
+        A ``float64`` Series of seconds since 1970-01-01T00:00:00Z.
+
+    Raises:
+        PreprocessingError: If either column cannot be parsed.
+
+    Example:
+        >>> combine_date_time_epoch(pd.Series(["2022-10-07"]), pd.Series(["10:35:19"])).tolist()
+        [1665138919.0]
+    """
+    try:
+        days = pd.to_datetime(date, format="%Y-%m-%d", utc=True, cache=True)
+        offsets = pd.to_timedelta(time)
+    except (ValueError, TypeError) as exc:
+        raise PreprocessingError(f"Cannot combine Date and Time into a timestamp: {exc}") from exc
+    if days.isna().any() or offsets.isna().any():
+        raise PreprocessingError(
+            "Date/Time hold unparseable values: "
+            f"{int(days.isna().sum())} date(s) and {int(offsets.isna().sum())} time(s)."
+        )
+    combined = (days + offsets).astype("int64") / 1_000_000_000
+    return combined.astype("float64")
 
 
 def select_top_variance(df: pd.DataFrame, top_k: int) -> pd.DataFrame:
@@ -763,6 +807,63 @@ class DatasetPreprocessor:
             for attribute in dir(self)
             if attribute.startswith(prefix)
         )
+
+    def reader_for(self, name: str):
+        """Return the shared raw reader bound to a dataset key.
+
+        The fraud endpoint builds its per-row context from the same frame the
+        canonical preprocessing consumes, so the datasets it serves expose
+        their raw read step as a ``_read_<key>`` method.
+
+        Args:
+            name: Dataset key.
+
+        Returns:
+            The bound ``_read_<name>`` method, or ``None`` when the dataset
+            does not expose one.
+        """
+        return getattr(self, f"_read_{name}", None)
+
+    def has_reader(self, name: str) -> bool:
+        """Return whether a shared raw reader exists for ``name``."""
+        return self.reader_for(name) is not None
+
+    def read_raw(
+        self,
+        name: str,
+        raw_dir: Path,
+        meta: dict[str, Any] | None = None,
+    ) -> pd.DataFrame:
+        """Read a dataset's raw files into the frame its preprocessing consumes.
+
+        The returned frame carries the native columns in the final row order,
+        after any joins, filters, and derived columns, and before binarization
+        and encoding. It is the single source of row order shared by the
+        canonical parquet and the fraud context.
+
+        Args:
+            name: Dataset key.
+            raw_dir: Directory holding the dataset's raw files.
+            meta: Registry metadata. Looked up from the registry when omitted.
+
+        Returns:
+            The raw frame in final row order.
+
+        Raises:
+            PreprocessingError: If the dataset exposes no shared reader, or the
+                raw files are missing or malformed.
+        """
+        reader = self.reader_for(name)
+        if reader is None:
+            raise PreprocessingError(
+                f"No shared raw reader for '{name}'. Add a _read_{name}() method to "
+                f"DatasetPreprocessor."
+            )
+        if meta is None:
+            from imbdata.registry import get_dataset_meta
+
+            meta = get_dataset_meta(name)
+        return reader(Path(raw_dir), meta)
 
     def preprocess(
         self,
@@ -1647,6 +1748,31 @@ class DatasetPreprocessor:
     # Batch B — Kaggle financial fraud and insurance datasets
     # ══════════════════════════════════════════════════════════════════
 
+    def _read_credit_card_fraud(self, raw_dir: Path, meta: dict[str, Any]) -> pd.DataFrame:
+        """Read the ULB credit card fraud CSV.
+
+        Shared reader (DD-16 of the 0.4.0 handoff) for the canonical parquet
+        and the fraud context. The file needs no join or filter, and its row
+        order — ascending ``Time`` — is the order both artefacts use.
+
+        Args:
+            raw_dir: Directory holding ``creditcard.csv``.
+            meta: Registry metadata for the dataset.
+
+        Returns:
+            The CSV as read, with ``Time``, ``Amount``, ``V1``-``V28`` and the
+            target column.
+
+        Raises:
+            PreprocessingError: If the CSV is absent or lacks the target.
+        """
+        source = self.locate(raw_dir, "creditcard.csv")
+        frame = pd.read_csv(source)
+        self._require_columns(
+            frame, [str(meta.get("target_column", "Class"))], source.name
+        )
+        return frame
+
     def _preprocess_credit_card_fraud(
         self,
         raw_dir: Path,
@@ -1666,13 +1792,37 @@ class DatasetPreprocessor:
             meta: Registry metadata for the dataset.
             variant: Unused; the dataset has a single variant.
         """
-        source = self.locate(raw_dir, "creditcard.csv")
-        frame = pd.read_csv(source)
+        frame = self._read_credit_card_fraud(raw_dir, meta)
         target_column = meta.get("target_column", "Class")
 
         y = binarize_column(pd.to_numeric(frame[target_column], errors="coerce"), 1.0)
         X = to_numeric_frame(frame.drop(columns=[target_column]))
         self.write(assemble_canonical(X, y), output_path)
+
+    def _read_paysim(self, raw_dir: Path, meta: dict[str, Any]) -> pd.DataFrame:
+        """Read the PaySim log CSV.
+
+        Shared reader (DD-16) for the canonical parquet and the fraud context.
+        No join or filter applies, and the row order is the log's own, ordered
+        by ``step``. The account identifiers the canonical frame drops are kept
+        here, because they are the graph the fraud endpoint serves.
+
+        Args:
+            raw_dir: Directory holding the PaySim log CSV.
+            meta: Registry metadata for the dataset.
+
+        Returns:
+            The CSV as read, ``nameOrig``/``nameDest`` included.
+
+        Raises:
+            PreprocessingError: If the CSV is absent or lacks the target.
+        """
+        source = self.locate(raw_dir, "PS_20174392719_1491204439457_log.csv", "PS_*.csv", "*.csv")
+        frame = pd.read_csv(source)
+        self._require_columns(
+            frame, [str(meta.get("target_column", "isFraud"))], source.name
+        )
+        return frame
 
     def _preprocess_paysim(
         self,
@@ -1695,8 +1845,7 @@ class DatasetPreprocessor:
             meta: Registry metadata for the dataset.
             variant: Unused; the dataset has a single variant.
         """
-        source = self.locate(raw_dir, "PS_20174392719_1491204439457_log.csv", "PS_*.csv", "*.csv")
-        frame = pd.read_csv(source)
+        frame = self._read_paysim(raw_dir, meta)
         target_column = meta.get("target_column", "isFraud")
 
         y = binarize_column(pd.to_numeric(frame[target_column], errors="coerce"), 1.0)
@@ -1704,6 +1853,58 @@ class DatasetPreprocessor:
         features = frame.drop(columns=[target_column, *dropped])
         X = to_numeric_frame(onehot_encode(features, self._encoding_columns(meta)))
         self.write(assemble_canonical(X, y), output_path)
+
+    def _read_elliptic_bitcoin(self, raw_dir: Path, meta: dict[str, Any]) -> pd.DataFrame:
+        """Join the Elliptic feature matrix with its class table.
+
+        Shared reader (DD-16) for the canonical parquet and the fraud context.
+        The headerless feature file supplies ``txId``, ``time_step`` and 165
+        anonymized features; the class table supplies ``class`` for every node,
+        ``unknown`` included. All 203,769 nodes are returned: the canonical
+        build drops the unlabeled ones when it assembles, and the fraud
+        context needs them to keep the graph connected.
+
+        Args:
+            raw_dir: Directory holding the ``elliptic_txs_*.csv`` files.
+            meta: Registry metadata for the dataset.
+
+        Returns:
+            One row per node, in feature-file order, with ``class`` attached.
+
+        Raises:
+            PreprocessingError: If either CSV is absent or lacks its key.
+        """
+        features_file = self.locate(raw_dir, "elliptic_txs_features.csv")
+        classes_file = self.locate(raw_dir, "elliptic_txs_classes.csv")
+
+        features = pd.read_csv(features_file, header=None)
+        features.columns = ["txId", "time_step"] + [
+            f"f{index:03d}" for index in range(1, features.shape[1] - 1)
+        ]
+        classes = pd.read_csv(classes_file)
+        self._require_columns(classes, ["txId", "class"], classes_file.name)
+
+        return features.merge(classes, on="txId", how="inner")
+
+    def read_elliptic_edges(self, raw_dir: Path) -> pd.DataFrame:
+        """Read the Elliptic edge list.
+
+        The canonical parquet ignores the graph, so this reader exists for
+        :mod:`imbdata.fraud`, which serves the edge list as its own artefact.
+
+        Args:
+            raw_dir: Directory holding ``elliptic_txs_edgelist.csv``.
+
+        Returns:
+            The edge list with its two ``txId`` columns.
+
+        Raises:
+            PreprocessingError: If the file is absent or malformed.
+        """
+        path = self.locate(raw_dir, "elliptic_txs_edgelist.csv")
+        edges = pd.read_csv(path)
+        self._require_columns(edges, ["txId1", "txId2"], path.name)
+        return edges
 
     def _preprocess_elliptic_bitcoin(
         self,
@@ -1727,16 +1928,7 @@ class DatasetPreprocessor:
             meta: Registry metadata for the dataset.
             variant: Unused; the dataset has a single variant.
         """
-        features_file = self.locate(raw_dir, "elliptic_txs_features.csv")
-        classes_file = self.locate(raw_dir, "elliptic_txs_classes.csv")
-
-        features = pd.read_csv(features_file, header=None)
-        features.columns = ["txId", "time_step"] + [
-            f"f{index:03d}" for index in range(1, features.shape[1] - 1)
-        ]
-        classes = pd.read_csv(classes_file)
-
-        merged = features.merge(classes, on="txId", how="inner")
+        merged = self._read_elliptic_bitcoin(raw_dir, meta)
         labels = merged[meta.get("target_column", "class")].astype(str).str.strip()
 
         y = normalize_target(
@@ -1810,6 +2002,37 @@ class DatasetPreprocessor:
         X = to_numeric_frame(onehot_encode(features, categorical))
         self.write(assemble_canonical(X, y), output_path)
 
+    def _read_ieee_cis_fraud(self, raw_dir: Path, meta: dict[str, Any]) -> pd.DataFrame:
+        """Join the IEEE-CIS transaction and identity tables.
+
+        Shared reader (DD-16) for the canonical parquet and the fraud context.
+        The join is a left join on ``TransactionID``, so every transaction
+        survives and the row order is the transaction file's, ascending in
+        ``TransactionDT``.
+
+        Args:
+            raw_dir: Directory holding the competition CSVs.
+            meta: Registry metadata for the dataset.
+
+        Returns:
+            The 434-column joined view, one row per transaction.
+
+        Raises:
+            PreprocessingError: If either CSV is absent or lacks its key.
+        """
+        transactions = pd.read_csv(self.locate(raw_dir, "train_transaction.csv"))
+        identities = pd.read_csv(self.locate(raw_dir, "train_identity.csv"))
+        self._require_columns(
+            transactions,
+            ["TransactionID", str(meta.get("target_column", "isFraud"))],
+            "train_transaction.csv",
+        )
+        self._require_columns(identities, ["TransactionID"], "train_identity.csv")
+
+        merged = transactions.merge(identities, on="TransactionID", how="left")
+        del transactions, identities
+        return merged
+
     def _preprocess_ieee_cis_fraud(
         self,
         raw_dir: Path,
@@ -1835,10 +2058,7 @@ class DatasetPreprocessor:
             meta: Registry metadata for the dataset.
             variant: Unused; the dataset has a single variant.
         """
-        transactions = pd.read_csv(self.locate(raw_dir, "train_transaction.csv"))
-        identities = pd.read_csv(self.locate(raw_dir, "train_identity.csv"))
-        merged = transactions.merge(identities, on="TransactionID", how="left")
-        del transactions, identities
+        merged = self._read_ieee_cis_fraud(raw_dir, meta)
 
         target_column = meta.get("target_column", "isFraud")
         y = binarize_column(pd.to_numeric(merged[target_column], errors="coerce"), 1.0)
@@ -1848,6 +2068,69 @@ class DatasetPreprocessor:
         features = ordinal_encode(features, self._object_columns(features))
         X = impute_median(drop_high_missing(to_numeric_frame(features), 1.0))
         logger.info(f"ieee_cis_fraud: {X.shape[0]} transactions, {X.shape[1]} features")
+        self.write(assemble_canonical(X, y), output_path)
+
+    def _read_saml_d(self, raw_dir: Path, meta: dict[str, Any]) -> pd.DataFrame:
+        """Read SAML-D and derive its numeric timestamp.
+
+        Shared reader (the single source of row order) for the canonical
+        parquet and the fraud context. Row order is the order of the CSV, which
+        is chronological; no join or filter applies.
+
+        Args:
+            raw_dir: Directory holding ``SAML-D.csv``.
+            meta: Registry metadata for the dataset.
+
+        Returns:
+            The native columns plus ``timestamp``, in Unix seconds (UTC).
+
+        Raises:
+            PreprocessingError: If the CSV is absent or lacks a required column.
+        """
+        source = self.locate(raw_dir, str(meta.get("filename") or "SAML-D.csv"))
+        frame = pd.read_csv(source)
+        target_column = str(meta.get("target_column", "Is_laundering"))
+        self._require_columns(frame, ["Date", "Time", target_column], source.name)
+        frame["timestamp"] = combine_date_time_epoch(frame["Date"], frame["Time"])
+        return frame
+
+    def _preprocess_saml_d(
+        self,
+        raw_dir: Path,
+        output_path: Path,
+        meta: dict[str, Any],
+        variant: str | None = None,
+    ) -> None:
+        """Preprocess the SAML-D synthetic AML transaction monitoring dataset.
+
+        ``Sender_account`` and ``Receiver_account`` are high-cardinality
+        surrogate keys, dropped on the same criterion as PaySim's
+        ``nameOrig``/``nameDest``. ``Laundering_type`` names the typology that
+        produced each transaction, so it filters the target and is dropped as
+        ``unsw_nb15``'s ``attack_cat`` is. ``Date`` and ``Time`` are replaced by
+        the numeric ``timestamp`` the shared reader derives. The five remaining
+        categorical columns are one-hot encoded; any of them with more than
+        ``ONEHOT_MAX_LEVELS`` levels would be ordinal-encoded instead, which no
+        level count in the published file triggers.
+
+        Args:
+            raw_dir: Directory holding ``SAML-D.csv``.
+            output_path: Destination parquet file.
+            meta: Registry metadata for the dataset.
+            variant: Unused; the dataset has a single variant.
+        """
+        frame = self._read_saml_d(raw_dir, meta)
+        target_column = str(meta.get("target_column", "Is_laundering"))
+
+        y = binarize_column(pd.to_numeric(frame[target_column], errors="coerce"), 1.0)
+        dropped = [c for c in self._as_sequence(meta.get("features_drop")) if c in frame.columns]
+        features = frame.drop(columns=[target_column, *dropped, "Date", "Time"])
+        del frame
+
+        onehot, ordinal = self._split_by_cardinality(features, self._encoding_columns(meta))
+        X = to_numeric_frame(ordinal_encode(onehot_encode(features, onehot), ordinal))
+        del features
+        logger.info(f"saml_d: {X.shape[0]} transactions, {X.shape[1]} features")
         self.write(assemble_canonical(X, y), output_path)
 
     # ══════════════════════════════════════════════════════════════════
@@ -2383,6 +2666,59 @@ class DatasetPreprocessor:
         return values
 
     # ── Registry helpers ───────────────────────────────────────────────
+
+    @staticmethod
+    def _require_columns(frame: pd.DataFrame, columns: Sequence[str], label: str) -> None:
+        """Raise unless every named column is present in ``frame``.
+
+        Indexing a missing column raises ``KeyError``, which crosses the
+        package boundary as an error a consumer cannot catch with
+        ``ImbdataError``. Checking first keeps every raw-format surprise inside
+        the exception hierarchy.
+
+        Args:
+            frame: Frame just read from the raw files.
+            columns: Column names the routine depends on.
+            label: Human-readable name of the source, used in the message.
+
+        Raises:
+            PreprocessingError: If any column is absent.
+        """
+        missing = [column for column in columns if column not in frame.columns]
+        if missing:
+            raise PreprocessingError(
+                f"{label} is missing column(s) {missing}. "
+                f"Available columns: {list(frame.columns)}"
+            )
+
+    @classmethod
+    def _split_by_cardinality(
+        cls,
+        frame: pd.DataFrame,
+        columns: Sequence[str],
+        max_levels: int = ONEHOT_MAX_LEVELS,
+    ) -> tuple[list[str], list[str]]:
+        """Split declared categoricals into one-hot and ordinal groups.
+
+        Args:
+            frame: Feature frame holding the categorical columns.
+            columns: Declared categorical column names.
+            max_levels: Highest cardinality still one-hot encoded.
+
+        Returns:
+            ``(onehot, ordinal)``: the present columns with at most
+            ``max_levels`` distinct values, and those above it.
+        """
+        present = [column for column in columns if column in frame.columns]
+        ordinal = [
+            column for column in present
+            if frame[column].astype(str).nunique() > max_levels
+        ]
+        if ordinal:
+            logger.info(
+                f"Ordinal-encoding {ordinal}: more than {max_levels} levels each"
+            )
+        return [column for column in present if column not in ordinal], ordinal
 
     @staticmethod
     def _object_columns(df: pd.DataFrame) -> list[str]:

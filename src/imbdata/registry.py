@@ -13,13 +13,14 @@ Author:
     CVU: 905206 · ORCID: 0009-0004-9514-5508
 
 Project:
-    imbdata v0.3.1 — Imbalanced Classification Dataset Repository
+    imbdata v0.4.0 — Imbalanced Classification Dataset Repository
     Advisor: Dr. José Antonio Neme Castillo
     Research Group: Anomalocaris
 """
 
 from __future__ import annotations
 
+import copy
 import logging
 from pathlib import Path
 from typing import Any, Iterator
@@ -33,8 +34,20 @@ logger = logging.getLogger(__name__)
 
 REQUIRED_FIELDS = ("domain", "source")
 
+# Optional `fraud:` block (0.4.0). Declaring it enrols a dataset in the fraud
+# endpoint, so its schema is validated; REQUIRED_FIELDS is deliberately left
+# untouched, as with `license` in 0.3.1, so user registries keep validating.
+FRAUD_REQUIRED_FIELDS = ("time", "amount", "graph", "entity", "synthetic")
+FRAUD_TIME_REQUIRED_FIELDS = ("column", "unit", "calendar")
+FRAUD_TIME_UNITS = ("second", "hour", "step")
+FRAUD_GRAPH_KINDS = ("account", "transaction")
+FRAUD_DRIFT_PROVENANCES = ("researcher_constructed",)
+
 __all__ = [
     "DatasetRegistry",
+    "FRAUD_TIME_UNITS",
+    "FRAUD_GRAPH_KINDS",
+    "FRAUD_DRIFT_PROVENANCES",
     "get_registry",
     "get_dataset_meta",
     "list_domains",
@@ -177,6 +190,7 @@ class DatasetRegistry:
         domain: str | None = None,
         source: str | None = None,
         status: str | None = None,
+        fraud: bool | None = None,
     ) -> list[str]:
         """Return the dataset keys matching every supplied criterion.
 
@@ -184,13 +198,16 @@ class DatasetRegistry:
             domain: Restrict to datasets of this domain (e.g. ``'medicine'``).
             source: Restrict to datasets served by this source (e.g. ``'uci'``).
             status: Restrict to datasets with this registry status.
+            fraud: ``True`` keeps only datasets that declare a ``fraud`` block
+                (the ones ``imbdata.fraud`` serves), ``False`` only those that
+                do not, ``None`` does not filter on it.
 
         Returns:
             Sorted list of matching dataset keys; empty when nothing matches.
 
         Example:
-            >>> DatasetRegistry().filter(domain="financial_fraud")
-            ['baf', 'credit_card_fraud', 'elliptic_bitcoin', 'ieee_cis_fraud', 'paysim']
+            >>> DatasetRegistry().filter(fraud=True)
+            ['credit_card_fraud', 'elliptic_bitcoin', 'ieee_cis_fraud', 'paysim', 'saml_d']
         """
         criteria = {"domain": domain, "source": source, "status": status}
         active = {field: value for field, value in criteria.items() if value is not None}
@@ -198,7 +215,24 @@ class DatasetRegistry:
             key
             for key, meta in self.entries.items()
             if all(meta.get(field) == value for field, value in active.items())
+            and (fraud is None or bool(meta.get("fraud")) is fraud)
         )
+
+    def fraud_block(self, name: str) -> dict[str, Any] | None:
+        """Return the ``fraud`` block of a dataset, if it declares one.
+
+        Args:
+            name: Dataset key.
+
+        Returns:
+            A deep copy of the block, or ``None`` when the dataset is not part
+            of the fraud endpoint.
+
+        Raises:
+            DatasetNotFoundError: If ``name`` is not registered.
+        """
+        block = self.get(name).get("fraud")
+        return copy.deepcopy(block) if block else None
 
     def domains(self) -> list[str]:
         """Return the sorted list of distinct domains present in the registry."""
@@ -222,11 +256,83 @@ class DatasetRegistry:
             missing = [field for field in REQUIRED_FIELDS if not meta.get(field)]
             if missing:
                 problems.append(f"'{key}' is missing {', '.join(missing)}")
+            if "fraud" in meta:
+                problems.extend(self._fraud_problems(key, meta["fraud"]))
         if problems:
             raise RegistryError(
                 f"Invalid dataset registry {self.path}: " + "; ".join(problems)
             )
         return True
+
+    @staticmethod
+    def _fraud_problems(key: str, block: Any) -> list[str]:
+        """List the schema violations of one ``fraud`` block.
+
+        The block is what tells :mod:`imbdata.fraud` where the native time,
+        amount, graph, and entity of a dataset live, so a typo there would
+        surface as a missing context column rather than as a registry error.
+
+        Args:
+            key: Dataset key the block belongs to.
+            block: The value of the entry's ``fraud`` field.
+
+        Returns:
+            Human-readable problem descriptions; empty when the block is valid.
+        """
+        label = f"'{key}' fraud block"
+        if not isinstance(block, dict):
+            return [f"{label} must be a mapping, got {type(block).__name__}"]
+
+        problems: list[str] = []
+        missing = [field for field in FRAUD_REQUIRED_FIELDS if field not in block]
+        if missing:
+            problems.append(f"{label} is missing {', '.join(missing)}")
+
+        time = block.get("time")
+        if not isinstance(time, dict):
+            problems.append(f"{label} needs a `time` mapping")
+        else:
+            absent = [field for field in FRAUD_TIME_REQUIRED_FIELDS if field not in time]
+            if absent:
+                problems.append(f"{label} time is missing {', '.join(absent)}")
+            if time.get("unit") not in FRAUD_TIME_UNITS:
+                problems.append(
+                    f"{label} time.unit must be one of {list(FRAUD_TIME_UNITS)}, "
+                    f"got {time.get('unit')!r}"
+                )
+            if not isinstance(time.get("calendar"), bool):
+                problems.append(f"{label} time.calendar must be a boolean")
+
+        amount = block.get("amount")
+        if amount is not None and not (isinstance(amount, dict) and amount.get("column")):
+            problems.append(f"{label} amount must be null or a mapping with a `column`")
+
+        graph = block.get("graph")
+        if graph is not None:
+            if not isinstance(graph, dict):
+                problems.append(f"{label} graph must be null or a mapping")
+            else:
+                kind = graph.get("kind")
+                if kind not in FRAUD_GRAPH_KINDS:
+                    problems.append(
+                        f"{label} graph.kind must be one of "
+                        f"{[*FRAUD_GRAPH_KINDS, None]}, got {kind!r}"
+                    )
+                elif kind == "account" and not (graph.get("src") and graph.get("dst")):
+                    problems.append(f"{label} graph of kind 'account' needs `src` and `dst`")
+                elif kind == "transaction" and not graph.get("edges"):
+                    problems.append(f"{label} graph of kind 'transaction' needs `edges`")
+
+        if not isinstance(block.get("synthetic"), bool):
+            problems.append(f"{label} synthetic must be a boolean")
+
+        provenance = block.get("drift_provenance")
+        if provenance is not None and provenance not in FRAUD_DRIFT_PROVENANCES:
+            problems.append(
+                f"{label} drift_provenance must be one of "
+                f"{[*FRAUD_DRIFT_PROVENANCES, None]}, got {provenance!r}"
+            )
+        return problems
 
     def _suggest(self, name: str) -> str | None:
         """Return the closest registered key to ``name``, if any is close enough.

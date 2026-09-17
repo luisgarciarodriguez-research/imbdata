@@ -62,7 +62,7 @@ X, y, meta = imbdata.load("credit_card_fraud", return_meta=True)
 # List datasets, optionally by domain
 imbdata.list_datasets()
 imbdata.list_datasets(domain="financial_fraud")
-# → ['baf', 'credit_card_fraud', 'elliptic_bitcoin', 'ieee_cis_fraud', 'paysim']
+# → ['baf', 'credit_card_fraud', 'elliptic_bitcoin', 'ieee_cis_fraud', 'paysim', 'saml_d']
 
 # Inspect metadata without loading the features
 imbdata.info("credit_card_fraud")
@@ -75,6 +75,63 @@ imbdata.ensure(domain="financial_fraud")
 imbdata.verify()      # → {'spambase': 'OK', 'paysim': 'MISSING', ...}
 imbdata.store_path()  # → PosixPath('/home/luis/.imbdata')
 ```
+
+## Fraud endpoint
+
+The canonical format is the contract for *features*, so it drops what a fraud
+study needs to reason about *when* a transaction happened, *how much* it moved
+and *who* paid *whom*. `imbdata.fraud` serves those facts as a parallel
+artefact, aligned row by row with the canonical frame. Neither the contract nor
+any dataset's data changes.
+
+```python
+from imbdata import fraud
+
+fraud.list_datasets()
+# → ['credit_card_fraud', 'elliptic_bitcoin', 'ieee_cis_fraud', 'paysim', 'saml_d']
+
+ds = fraud.load("saml_d")
+ds.X, ds.y          # identical to imbdata.load("saml_d")
+ds.context          # one row per row of X, in the same order
+ds.nodes, ds.edges  # the full graph for Elliptic; None for the others
+ds.meta             # fraud.info("saml_d")
+```
+
+`context` always has the same ten columns, whatever the dataset publishes:
+
+| Column | dtype | Meaning |
+|--------|-------|---------|
+| `t` | `float64` | Native time, identical to the temporal column of `X` |
+| `t_seconds` | `float64` | `t` in seconds; `NaN` when the unit has no published duration (Elliptic's steps) |
+| `event_time` | `datetime64[ns]` | Calendar instant, where the dataset dates its rows (SAML-D) |
+| `amount` | `float64` | Native amount; `NaN` where none is published (Elliptic) |
+| `currency` | `string` | Per-row currency, where published (SAML-D) |
+| `src_id`, `dst_id` | `Int64` | Payer and payee, encoded in one shared code space |
+| `entity_id` | `Int64` | Native per-row entity, where the dataset declares one |
+| `node_id` | `Int64` | Node identifier, where the row is a graph node (Elliptic) |
+| `typology` | `string` | Native typology (SAML-D `Laundering_type`) |
+
+A concept a dataset does not publish is an all-null column, declared as such in
+its registry block, so one pipeline covers all five datasets.
+
+> `typology` is derived from the label. It is served for stratification and
+> error analysis, and must never be used as a feature.
+
+For Elliptic, `nodes` and `edges` keep **every** node and edge, the 157,205
+unlabelled nodes included, because the graph structure depends on them; `X`,
+`y` and `context` keep the 46,564 labelled rows, and `nodes['row']` maps a node
+to its position in `X` (`<NA>` when it has none).
+
+Artefacts live in `<store>/processed/fraud/` and are recorded in the store's
+manifest under `fraud/<key>.<part>`, so `imbdata.verify()` keeps reporting
+exactly the canonical datasets while `fraud.verify()` reports the artefacts.
+A registered dataset with no `fraud:` block raises `NotAFraudDatasetError`.
+
+What the endpoint deliberately does not decide, because it is the consumer's
+method: a surrogate entity for IEEE-CIS, currency conversion for SAML-D, the
+temporal windows of PaySim and the ULB dataset, how to treat Elliptic's
+unknown nodes, and any calendar anchor for the datasets whose time origin was
+never published.
 
 ## Canonical data format
 
@@ -121,6 +178,10 @@ imbdata download --domain medicine    # a whole domain
 imbdata download --all                # everything
 imbdata verify                        # check cached files against the manifest
 imbdata status                        # store path, size, and counters
+
+imbdata fraud list                    # datasets the fraud endpoint serves
+imbdata fraud info saml_d             # metadata plus the fraud block
+imbdata fraud download --all          # build every context artefact
 ```
 
 ## Data store layout
@@ -134,7 +195,10 @@ imbdata status                        # store path, size, and counters
 │   └── ecoli_imu/
 └── processed/       # canonical parquet files, ready to load
     ├── spambase.parquet
-    └── ecoli_imu.parquet
+    ├── ecoli_imu.parquet
+    └── fraud/       # fraud endpoint artefacts, recorded as `fraud/<key>.<part>`
+        ├── paysim.context.parquet
+        └── elliptic_bitcoin.{context,nodes,edges}.parquet
 ```
 
 Relocate the store with the `IMBDATA_STORE` environment variable, or with a
@@ -160,18 +224,23 @@ Stateless transformations are plain functions: `compute_sha256`,
 signal-summarizing trio `segment_signal`, `extract_time_domain_features`,
 `extract_spectral_features` alongside `extract_mvts_features`.
 
+`fraud.py` follows the same shape for the fraud endpoint: `FraudContextBuilder`
+(one `_context_<key>` routine per served dataset), `FraudStore` (paths, writing,
+manifest, verification) and `FraudService` (orchestration), with the frozen
+`FraudDataset` as its return type.
+
 Each module also exposes a thin function facade over a lazily-created default
 instance, so the public API stays a two-call surface while remaining fully
 injectable in tests.
 
 ## Registered datasets
 
-30 datasets across 15 domains. `datasets.yaml` holds the metadata, the direct
+31 datasets across 15 domains. `datasets.yaml` holds the metadata, the direct
 file URLs, and the binarization, encoding, and imputation rules for each.
 
 | Domain | Datasets |
 |--------|----------|
-| financial_fraud | `baf`, `credit_card_fraud`, `elliptic_bitcoin`, `ieee_cis_fraud`, `paysim` |
+| financial_fraud | `baf`, `credit_card_fraud`, `elliptic_bitcoin`, `ieee_cis_fraud`, `paysim`, `saml_d` |
 | medicine | `breast_cancer_wisconsin`, `mammography`, `pima_diabetes`, `tcga_brca` |
 | cybersecurity | `cic_ids_2017`, `nsl_kdd`, `unsw_nb15` |
 | manufacturing | `cwru_bearing`, `secom`, `seu_gearbox` |
@@ -181,7 +250,7 @@ file URLs, and the binarization, encoding, and imputation rules for each.
 | remote_sensing | `satimage` |
 | others | `abalone_19`, `adult_census`, `iranian_churn`, `ozone_level`, `spambase`, `vehicle_insurance_fraud`, `wine_quality_red`, `wine_quality_white` |
 
-All 30 are implemented and cached; `imbdata verify` reports 30 OK.
+All 31 are implemented and cached; `imbdata verify` reports 31 OK.
 
 Each entry's `license` block (also returned by `imbdata.info()`) records the
 terms set by the data's owner, not by a mirror: `status` is `declared`,

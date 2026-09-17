@@ -21,7 +21,7 @@ Author:
     CVU: 905206 · ORCID: 0009-0004-9514-5508
 
 Project:
-    imbdata v0.3.1 — Imbalanced Classification Dataset Repository
+    imbdata v0.4.0 — Imbalanced Classification Dataset Repository
     Advisor: Dr. José Antonio Neme Castillo
     Research Group: Anomalocaris
 """
@@ -44,6 +44,7 @@ CONFIG_FILENAME = "config.json"
 MANIFEST_FILENAME = "manifest.json"
 RAW_DIRNAME = "raw"
 PROCESSED_DIRNAME = "processed"
+FRAUD_DIRNAME = "fraud"
 REGISTRY_FILENAME = "datasets.yaml"
 
 __all__ = [
@@ -53,6 +54,8 @@ __all__ = [
     "store_path",
     "raw_dir",
     "processed_path",
+    "fraud_dir",
+    "fraud_path",
     "manifest_path",
     "registry_path",
     "ensure_dirs",
@@ -169,6 +172,38 @@ class StoreConfig:
         if create:
             target.mkdir(parents=True, exist_ok=True)
         return target
+
+    def fraud_dir(self, create: bool = False) -> Path:
+        """Return the directory holding the fraud endpoint's context artefacts.
+
+        The per-row context, node and edge tables of ``imbdata.fraud`` live
+        beside the canonical parquet files, one level down, so that the
+        canonical ``processed/`` listing keeps naming exactly the datasets
+        ``imbdata.load`` serves.
+
+        Args:
+            create: Whether to create the directory when it does not exist.
+
+        Returns:
+            Path to ``<store>/processed/fraud``.
+        """
+        target = self.processed_dir() / FRAUD_DIRNAME
+        if create:
+            target.mkdir(parents=True, exist_ok=True)
+        return target
+
+    def fraud_path(self, dataset_key: str, part: str) -> Path:
+        """Return the path of one fraud artefact of a dataset.
+
+        Args:
+            dataset_key: Dataset key in snake_case (e.g. ``'paysim'``).
+            part: Artefact name: ``'context'``, ``'nodes'`` or ``'edges'``.
+
+        Returns:
+            Path to ``<store>/processed/fraud/<dataset_key>.<part>.parquet``,
+            whether or not it already exists.
+        """
+        return self.fraud_dir() / f"{dataset_key}.{part}.parquet"
 
     def processed_path(self, dataset_key: str, variant: str | None = None) -> Path:
         """Return the path of the canonical parquet file for a dataset.
@@ -325,6 +360,16 @@ def raw_dir(dataset_key: str) -> Path:
 def processed_path(dataset_key: str, variant: str | None = None) -> Path:
     """Return the canonical parquet path of ``dataset_key``."""
     return default_config().processed_path(dataset_key, variant)
+
+
+def fraud_dir() -> Path:
+    """Return the fraud artefact directory of the default configuration."""
+    return default_config().fraud_dir()
+
+
+def fraud_path(dataset_key: str, part: str) -> Path:
+    """Return the path of one fraud artefact in the default store."""
+    return default_config().fraud_path(dataset_key, part)
 
 
 def manifest_path() -> Path:

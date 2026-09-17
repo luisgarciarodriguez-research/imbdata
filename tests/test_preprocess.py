@@ -11,7 +11,7 @@ Author:
     CVU: 905206 · ORCID: 0009-0004-9514-5508
 
 Project:
-    imbdata v0.3.1 — Imbalanced Classification Dataset Repository
+    imbdata v0.4.0 — Imbalanced Classification Dataset Repository
     Advisor: Dr. José Antonio Neme Castillo
     Research Group: Anomalocaris
 """
@@ -27,10 +27,12 @@ import pytest
 from imbdata.exceptions import PreprocessingError
 from imbdata.preprocess import (
     MVTS_STATISTICS,
+    ONEHOT_MAX_LEVELS,
     DatasetPreprocessor,
     assemble_canonical,
     binarize_at_most,
     binarize_column,
+    combine_date_time_epoch,
     drop_constant_columns,
     drop_high_missing,
     extract_mvts_features,
@@ -501,3 +503,201 @@ def test_read_libsvm_on_an_empty_file_raises(tmp_path: Path) -> None:
     path.write_text("\n", encoding="utf-8")
     with pytest.raises(PreprocessingError, match="no instances"):
         DatasetPreprocessor._read_libsvm(path)
+
+
+# ── SAML-D (Date/Time folding, key and typology drop, encoding) ────────
+
+SAML_D_META = {
+    "key": "saml_d",
+    "filename": "SAML-D.csv",
+    "target_column": "Is_laundering",
+    "minority_value": 1,
+    "features_drop": ["Sender_account", "Receiver_account", "Laundering_type"],
+    "encoding": {
+        "type": "onehot",
+        "columns": [
+            "Payment_type",
+            "Payment_currency",
+            "Received_currency",
+            "Sender_bank_location",
+            "Receiver_bank_location",
+        ],
+    },
+    "imputation": "none",
+    "temporal_column": "timestamp",
+}
+
+
+def write_saml_d_csv(raw_dir: Path, rows: int = 20, **overrides: object) -> Path:
+    """Write a small stand-in for SAML-D.csv with the published header.
+
+    Every fourth row launders, so class 1 is the minority for any ``rows``
+    above three.
+
+    Args:
+        raw_dir: Directory to write into; created if absent.
+        rows: Number of transactions to generate.
+        **overrides: Columns to replace, each of length ``rows``, or to drop
+            when the value is ``None``.
+
+    Returns:
+        Path to the written CSV.
+    """
+    def cycle(values: list[str]) -> list[str]:
+        return [values[index % len(values)] for index in range(rows)]
+
+    frame = pd.DataFrame(
+        {
+            "Time": [f"10:{index // 60:02d}:{index % 60:02d}" for index in range(rows)],
+            "Date": cycle(["2022-10-07", "2022-10-08"]),
+            "Sender_account": [8724731955 + index for index in range(rows)],
+            "Receiver_account": [2769355426 + index for index in range(rows)],
+            "Amount": [1000.0 + 10 * index for index in range(rows)],
+            "Payment_currency": cycle(["UK pounds", "Dirham"]),
+            "Received_currency": cycle(["UK pounds", "Euro"]),
+            "Sender_bank_location": cycle(["UK", "UAE"]),
+            "Receiver_bank_location": cycle(["UK", "Germany"]),
+            "Payment_type": cycle(["Cash Deposit", "Cheque", "ACH", "Cross-border"]),
+            "Is_laundering": [1 if index % 4 == 0 else 0 for index in range(rows)],
+            "Laundering_type": cycle(
+                ["Smurfing", "Normal_Fan_Out", "Normal_Fan_In", "Normal_Group"]
+            ),
+        }
+    )
+    for column, values in overrides.items():
+        if values is None:
+            frame = frame.drop(columns=[column])
+        else:
+            frame[column] = values
+
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    path = raw_dir / "SAML-D.csv"
+    frame.to_csv(path, index=False)
+    return path
+
+
+def test_combine_date_time_epoch_returns_unix_seconds() -> None:
+    """A date and a time of day fold into one float64 column of Unix seconds."""
+    result = combine_date_time_epoch(
+        pd.Series(["2022-10-07", "1970-01-01"]), pd.Series(["10:35:19", "00:00:00"])
+    )
+    assert result.tolist() == [1665138919.0, 0.0]
+    assert str(result.dtype) == "float64"
+
+
+def test_combine_date_time_epoch_preserves_the_ordering() -> None:
+    """Later instants map to larger values, which is what the drift tests need."""
+    result = combine_date_time_epoch(
+        pd.Series(["2022-10-07", "2022-10-07", "2022-10-08"]),
+        pd.Series(["00:00:00", "23:59:59", "00:00:00"]),
+    )
+    assert result.is_monotonic_increasing
+    assert result.iloc[2] - result.iloc[1] == 1.0
+
+
+def test_combine_date_time_epoch_with_unparseable_values_raises() -> None:
+    """An unparseable date is a preprocessing error, not a silent NaT."""
+    with pytest.raises(PreprocessingError):
+        combine_date_time_epoch(pd.Series(["not-a-date"]), pd.Series(["10:35:19"]))
+
+
+def test_preprocess_saml_d_drops_keys_typology_and_raw_datetime(tmp_path: Path) -> None:
+    """Surrogate keys, the typology, and the textual Date/Time never reach X."""
+    raw_dir = tmp_path / "raw"
+    write_saml_d_csv(raw_dir)
+    out = tmp_path / "saml_d.parquet"
+    DatasetPreprocessor().preprocess("saml_d", raw_dir, out, SAML_D_META)
+
+    frame = pd.read_parquet(out)
+    for dropped in ("Sender_account", "Receiver_account", "Laundering_type", "Date", "Time"):
+        assert dropped not in frame.columns
+    assert "timestamp" in frame.columns
+    assert "Amount" in frame.columns
+
+
+def test_preprocess_saml_d_writes_the_timestamp_in_unix_seconds(tmp_path: Path) -> None:
+    """The derived timestamp is the Unix second of the row's Date and Time."""
+    raw_dir = tmp_path / "raw"
+    write_saml_d_csv(raw_dir)
+    out = tmp_path / "saml_d.parquet"
+    DatasetPreprocessor().preprocess("saml_d", raw_dir, out, SAML_D_META)
+
+    frame = pd.read_parquet(out)
+    expected = pd.Timestamp("2022-10-07 10:00:00", tz="UTC").timestamp()
+    assert frame["timestamp"].iloc[0] == expected
+    # Row order is the CSV's, so the second row (2022-10-08 10:00:01) is a day later.
+    assert frame["timestamp"].iloc[1] - expected == 86401.0
+
+
+def test_preprocess_saml_d_onehot_encodes_the_five_categoricals(tmp_path: Path) -> None:
+    """Each declared categorical becomes one indicator column per level."""
+    raw_dir = tmp_path / "raw"
+    write_saml_d_csv(raw_dir)
+    out = tmp_path / "saml_d.parquet"
+    DatasetPreprocessor().preprocess("saml_d", raw_dir, out, SAML_D_META)
+
+    columns = set(pd.read_parquet(out).columns)
+    assert {"Payment_currency=UK pounds", "Payment_currency=Dirham"} <= columns
+    assert {"Received_currency=UK pounds", "Received_currency=Euro"} <= columns
+    assert {"Sender_bank_location=UK", "Sender_bank_location=UAE"} <= columns
+    assert {"Receiver_bank_location=UK", "Receiver_bank_location=Germany"} <= columns
+    assert {"Payment_type=ACH", "Payment_type=Cash Deposit", "Payment_type=Cheque",
+            "Payment_type=Cross-border"} <= columns
+    # 2 numeric + 2 + 2 + 2 + 2 + 4 indicators + target
+    assert len(columns) == 15
+
+
+def test_preprocess_saml_d_target_is_binary_int64(tmp_path: Path) -> None:
+    """The target is int64 in {0, 1} with the laundering rows as class 1."""
+    raw_dir = tmp_path / "raw"
+    write_saml_d_csv(raw_dir)
+    out = tmp_path / "saml_d.parquet"
+    DatasetPreprocessor().preprocess("saml_d", raw_dir, out, SAML_D_META)
+
+    target = pd.read_parquet(out)["target"]
+    assert str(target.dtype) == "int64"
+    assert set(target.unique()) == {0, 1}
+    assert int(target.sum()) == 5
+
+
+def test_preprocess_saml_d_ordinal_encodes_a_wide_categorical(tmp_path: Path) -> None:
+    """A declared categorical above ONEHOT_MAX_LEVELS is ordinal-encoded instead."""
+    raw_dir = tmp_path / "raw"
+    levels = [f"currency_{index:03d}" for index in range(ONEHOT_MAX_LEVELS + 1)]
+    write_saml_d_csv(raw_dir, rows=len(levels), Payment_currency=levels)
+    out = tmp_path / "saml_d.parquet"
+    DatasetPreprocessor().preprocess("saml_d", raw_dir, out, SAML_D_META)
+
+    frame = pd.read_parquet(out)
+    assert "Payment_currency" in frame.columns
+    assert not [c for c in frame.columns if c.startswith("Payment_currency=")]
+    assert frame["Payment_currency"].nunique() == len(levels)
+    assert str(frame["Payment_currency"].dtype) == "float64"
+
+
+def test_preprocess_saml_d_without_the_target_raises(tmp_path: Path) -> None:
+    """A CSV missing the target column raises PreprocessingError, not KeyError."""
+    raw_dir = tmp_path / "raw"
+    write_saml_d_csv(raw_dir, Is_laundering=None)
+    with pytest.raises(PreprocessingError, match="Is_laundering"):
+        DatasetPreprocessor().preprocess(
+            "saml_d", raw_dir, tmp_path / "saml_d.parquet", SAML_D_META
+        )
+
+
+def test_read_saml_d_keeps_the_native_columns_for_the_fraud_context(tmp_path: Path) -> None:
+    """The shared reader keeps the columns the canonical frame drops."""
+    raw_dir = tmp_path / "raw"
+    write_saml_d_csv(raw_dir)
+    frame = DatasetPreprocessor().read_raw("saml_d", raw_dir, SAML_D_META)
+
+    assert len(frame) == 20
+    for native in ("Sender_account", "Receiver_account", "Amount", "Payment_currency",
+                   "Laundering_type", "Is_laundering", "timestamp"):
+        assert native in frame.columns
+
+
+def test_read_raw_without_a_reader_raises(tmp_path: Path) -> None:
+    """Datasets outside the fraud endpoint expose no shared reader."""
+    with pytest.raises(PreprocessingError, match="No shared raw reader"):
+        DatasetPreprocessor().read_raw("spambase", tmp_path, {"key": "spambase"})

@@ -1,21 +1,22 @@
 # STATUS — imbdata
 
-## Último reporte: 2026-09-16 — Versión 0.3.1: licencias en el registro
+## Último reporte: 2026-09-17 — Versión 0.4.0: `saml_d` y el endpoint de fraude
 
 ### Estado actual
-- Fase: Fase A de ampliación del registro **completa y publicada** (A1 y A2,
-  tag `v0.3.0` en origin); A3 pospuesta; Fase B en cipa-extended **completa**
-  (`c2d43e0`, 2026-09-15)
-- Módulos: 9/9 implementados
-- Tests: **230 pasando** en la corrida rápida (~3 s) + **19 marcados `slow`** (249 en total)
-- Datasets: **30/30 funcionales**, 15 dominios
-- Store: ~13 GB en `~/.imbdata`
-- Versión: **0.3.1** preparada (ver `CHANGELOG.md`); falta commit y tag `v0.3.1`.
-  Solo agrega metadatos: ningún dataset cambia sus datos ni su SHA-256
-- Licencias: bloque `license` en las 30 entradas (17 `declared`, 7 `owner_terms`,
-  6 `none_declared`), expuesto por `info()`
-- Bloqueantes: **ninguno**. cipa-extended fija `imbdata>=0.3,<0.4` y su contrato
-  de datos está congelado contra 0.3.0
+- Fase: **0.4.0 completa** — Parte A (`saml_d`) y Parte B (endpoint
+  `imbdata.fraud`), con sus artefactos materializados y verificados
+- Módulos: **10/10** implementados (`fraud.py` es nuevo)
+- Tests: **301 pasando** en la corrida rápida (~5 s) y **330** con `-m ""`
+- Datasets: **31/31 funcionales**, 15 dominios; **5/5** en el endpoint de fraude
+- Store: ~13 GB en `~/.imbdata` (+118 MB del parquet de `saml_d`, +951 MB de su
+  CSV crudo, +420 MB de los 7 artefactos de contexto)
+- Versión: **0.4.0** preparada (ver `CHANGELOG.md`); **sin commit ni tag**, como
+  pidió la guía `imbdata_0.4.0_handoff.md`. El mensaje está en `commit_message.txt`
+- Licencias: bloque `license` en las 31 entradas, expuesto por `info()`
+- Bloqueantes: **ninguno**
+- ⚠️ **0.4.0 rompe el pin `imbdata>=0.3,<0.4` de cipa-extended** y cambia sus
+  listados (30 → 31 claves; `financial_fraud` 5 → 6). Riesgo asumido por el
+  autor; se entrega el informe de impacto de B8 en vez de mitigarlo
 - Salvedad conocida: `seu_gearbox` no reproduce bit a bit entre versiones
   mayores de numpy (ver "Reproducibilidad entre versiones de numpy")
 
@@ -30,6 +31,15 @@
 - 🔖 **3.4 / 3.5** `manifest.json` con 32 entradas (30 datasets + `tcga_brca__full` +
   `ozone_level__eighthr`); `verify()` → 30 OK ✅
 - 🔖 **3.6** `cli.py` con los 5 subcomandos ✅
+- 🔖 **A0** (0.4.0) SAML-D inspeccionado: 9,504,852 filas y 0.1039 % positivos,
+  idénticos a lo que declara Kaggle ✅
+- 🔖 **A4** (0.4.0) `saml_d` materializado; el script FINAL del PLAN.md corre con
+  `assert len(ds) == 31` y `verify()` → 31 OK ✅
+- 🔖 **B0** (0.4.0) invariante de SHA-256: **5/5 idénticos** tras refactorizar los
+  preprocesadores de fraude sobre lectores compartidos ✅
+- 🔖 **B4** (0.4.0) `fraud.ensure()` → 5/5 construidos; `fraud.verify()` → **7/7
+  artefactos OK**; `imbdata.verify()` → 31 OK, sin cambios ✅
+- 🔖 **B5** (0.4.0) el script del checkpoint de la guía corre completo ✅
 - 🔖 **FINAL** — el script del PLAN.md corre sin `assert` fallido:
 
 ```
@@ -305,31 +315,47 @@ de forma ordinal, no one-hot, porque `DeviceInfo` y los dominios de email suman
 miles de niveles.
 
 ### Siguientes pasos
-1. Decisiones pendientes: **las cuatro cerradas el 2026-09-09.**
+1. **0.4.0 sin publicar:** falta el commit y el tag `v0.4.0`. La guía pidió
+   dejar el mensaje en `commit_message.txt` y no commitear sin instrucción
+   explícita del autor. Al publicar, el informe
+   `imbdata_0.4.0_impacto_cipa_extended.md` necesita el hash del commit en su §1.
+2. **cipa-extended, al recibir el informe:** mover el pin `imbdata>=0.3,<0.4`,
+   decidir si recongela `configs/data_contract.yaml`, actualizar el comentario
+   `intra_domain_focus: financial_fraud  # 5 datasets` y decidir si `saml_d`
+   entra al estudio (y si pasa por G1 y por la EDA). Instalar 0.4.0 en el `base`
+   deja esa versión para todos los proyectos que lo comparten.
+3. **`taxonomy-digital-fraud`, después:** `environment.yml` con
+   `imbdata>=0.4,<0.5` y `src/utils/loaders.py` como envoltorios delgados sobre
+   `imbdata.fraud.load`.
+4. **Fuera de alcance de 0.4.0, por si se retoma:** `baf` (financial_fraud) y
+   `vehicle_insurance_fraud` (insurance) también son datasets de fraude y no
+   tienen bloque `fraud:`. Agregarlos solo requiere su bloque y su
+   `_context_{key}`, sin cambiar la API (DD-17).
+5. Decisiones pendientes: **las cuatro cerradas el 2026-09-09.**
    - ~~`ozone_level`: horizonte de 1 h vs 8 h~~ → resuelta el 2026-09-09.
    - ~~`seu_gearbox`: `windows_per_file` 250 vs 1000~~ → resuelta el 2026-09-09.
    - ~~`cwru_bearing`: polaridad frente a la convención de COMIA~~ → resuelta el 2026-09-09.
    - ~~`tcga_brca`: divergencia con COMIA~~ → resuelta el 2026-09-09.
-2. EDA en el repositorio de CIPA Extended (decidido: no va en repo aparte; el
+6. EDA en el repositorio de CIPA Extended (decidido: no va en repo aparte; el
    control de calidad del dato sí baja a imbdata).
-3. Instalación: imbdata 0.3.0 está instalado en el `base` de conda como copia
+7. Instalación: imbdata 0.3.0 está instalado en el `base` de conda como copia
    normal, **no editable** (`direct_url.json` sin `editable`; verificado el
    2026-09-16). Es el que usa cipa-extended, y los cambios en `src/` no le llegan
    hasta reinstalar. Las pruebas de desarrollo se corren con `.venv/bin/python`,
    que sí es editable. Para otros entornos o proyectos que quieran versión fija:
    `pip install "imbdata @ git+ssh://git@github.com/luisgarciarodriguez-research/imbdata.git@v0.3.0"`.
-4. ~~Fase B en cipa-extended~~ → completa el 2026-09-15 (`c2d43e0`). Ver el
+8. ~~Fase B en cipa-extended~~ → completa el 2026-09-15 (`c2d43e0`). Ver el
    Historial de 2026-09-16.
-5. **Pendiente: partición oficial de `nsl_kdd`** (A3, pospuesta el 2026-09-14).
+9. **Pendiente: partición oficial de `nsl_kdd`** (A3, pospuesta el 2026-09-14).
    Exponer `KDDTest+` como variante con ataque=1 viola el contrato canónico,
    porque ahí los ataques son mayoría. Por el mismo criterio queda pendiente la
    partición `sat.trn`/`sat.tst` de `satimage`. La G1 de cipa-extended ya no la
    necesita (resolvió su D1 por la opción (b)), así que A3 queda como mejora
    propia de imbdata. Ver el Historial del 2026-09-14.
-6. **Tras publicar `v0.3.1`:** cipa-extended vuelve a congelar su contrato
+10. **Tras publicar `v0.3.1`:** cipa-extended vuelve a congelar su contrato
    (`make update-contract`, después de reinstalar imbdata 0.3.1 en el `base`).
    El diff debe mostrar **solo** `imbdata_version`.
-7. **Pendientes de la revisión de licencias (2026-09-16), sin resolver:**
+11. **Pendientes de la revisión de licencias (2026-09-16), sin resolver:**
    1. **`unsw_nb15`:** la nota del registro dice que la página del proyecto ya
       no enlaza descarga, y es falso: enlaza una carpeta de OneDrive de UNSW con
       los CSV oficiales. Además, en `~/.imbdata/raw/unsw_nb15/`
@@ -370,6 +396,83 @@ miles de niveles.
 ---
 
 ## Historial
+
+### 2026-09-17 — Versión 0.4.0, Parte A: `saml_d` (31/31)
+Origen: `taxonomy-digital-fraud`, tarea TAX-A-003, y la guía
+`imbdata_0.4.0_handoff.md`. Los cinco datasets de fraude de la taxonomía
+(D-TAX-5) se sirven desde imbdata, y SAML-D no estaba en el registro.
+
+**A0 — inspección del CSV crudo** (996,168,850 B, el tamaño que declara Kaggle):
+
+| Hecho | Valor |
+|---|---|
+| Filas × columnas | 9,504,852 × 12 |
+| Positivos (`Is_laundering` = 1) | 9,873 → 0.10387 % (Kaggle declara 0.1039 %) |
+| Faltantes | **ninguno**, en ninguna columna |
+| Nombres reales | `Is_laundering` y `Laundering_type`, los del uso habitual, no los de la descripción («Is Suspicious», «Type») |
+| `Date` / `Time` | `YYYY-MM-DD` y `HH:MM:SS`, del 2022-10-07 al 2023-08-23 (321 fechas, 86,400 horas distintas) |
+| Cardinalidad de las categóricas | `Payment_currency` 13, `Received_currency` 13, `Sender_bank_location` 18, `Receiver_bank_location` 18, `Payment_type` 7 |
+| Tipologías | 28 niveles: 11 `Normal_*` y 17 sospechosas, la mayor `Structuring` (1,870) y la menor `Over-Invoicing` (54) |
+| Cuentas distintas (origen ∪ destino) | 855,460 |
+| `Amount` | mediana 6,113.72; máximo 12,618,500 |
+
+Ninguna categórica pasa de 50 niveles, así que la excepción ordinal de DD-6 no
+se activó; el `d` final es **71** (2 numéricas + 69 indicadores), frente al ≈70
+que estimaba la guía. Sin faltantes, `imputation: none` (DD-7) no se topa con
+el bloqueo previsto.
+
+**Decisiones aplicadas tal cual:** DD-2 (dominio `financial_fraud`), DD-3, DD-4,
+DD-5 (`timestamp` en segundos Unix, fecha leída como UTC porque el dataset no
+declara zona), DD-6, DD-7, DD-8 y DD-9. El `timestamp` resultó **monótono
+creciente** en las 9,504,852 filas, así que el orden del CSV es cronológico.
+
+**A4:** materializar tomó 30 s; el parquet pesa 118 MB. `imbdata verify` → 31 OK.
+
+### 2026-09-17 — Versión 0.4.0, Parte B: endpoint `imbdata.fraud`
+
+**Por qué.** El formato canónico es el contrato de las *features*, y por eso descarta lo que un
+estudio de fraude necesita: cuándo ocurrió la transacción, cuánto movió, quién pagó a quién y
+bajo qué tipología. En vez de tocar el contrato, 0.4.0 agrega un artefacto paralelo alineado
+fila a fila, servido solo por `imbdata.fraud`.
+
+**B0 — la invariante que había que proteger.** Los cinco `_preprocess_*` de fraude se
+reescribieron sobre lectores compartidos `_read_{key}`, que son ahora la única fuente del orden
+de filas para el parquet canónico y para el contexto. Reconstruidos en un store temporal cuyo
+`raw/` apunta al real:
+
+| Dataset | SHA-256 | N | d |
+|---|---|---|---|
+| `credit_card_fraud` | idéntico | 284,807 | 30 |
+| `paysim` | idéntico | 6,362,620 | 11 |
+| `ieee_cis_fraud` | idéntico | 590,540 | 432 |
+| `elliptic_bitcoin` | idéntico | 46,564 | 166 |
+| `saml_d` | idéntico | 9,504,852 | 71 |
+
+**5/5 byte a byte.** La reconstrucción completa tomó 1 min 7 s.
+
+**Conteos crudos de Elliptic** (los pedía B0 para el checkpoint B5): 203,769 nodos en
+`elliptic_txs_features.csv` y en `elliptic_txs_classes.csv` (157,205 `unknown`, 42,019 lícitos,
+4,545 ilícitos) y 234,355 aristas en `elliptic_txs_edgelist.csv`.
+
+**Decisiones aplicadas tal cual:** DD-10 a DD-19. El esquema de `context` es fijo y de diez
+columnas; lo que un dataset no publica queda en nulos y declarado en su bloque `fraud:`. Los
+identificadores se codifican con `factorize(sort=True)` sobre la unión de origen y destino, así
+que una cuenta conserva un solo código en ambos lados y el código no depende del orden de las
+filas.
+
+**Elliptic conserva su grafo completo:** `nodes` trae los 203,769 nodos (con `row = <NA>` para
+los 157,205 sin etiqueta) y `edges` las 234,355 aristas, incluidas las que llegan a nodos sin
+etiqueta. `X`, `y` y `context` siguen con las 46,564 filas etiquetadas.
+
+**B4:** construir los 7 artefactos tomó 46 s y ocupan 420 MB. `fraud.verify()` → 7/7 OK, e
+`imbdata.verify()` → 31 OK, idéntico a antes.
+
+**Hallazgo de la sesión (corregido).** Una primera versión de la prueba
+`test_ensure_reports_the_error_per_dataset` borraba el CSV crudo de `saml_d` para forzar un
+error, y el descargador respondió **bajando los 951 MB reales desde Kaggle** a un directorio
+temporal de pytest. Se reemplazó por una prueba que rompe el bloque `fraud:` en vez de los
+archivos, y las fixtures del endpoint inyectan un `OfflineDownloadManager` que convierte
+cualquier archivo faltante en error inmediato. Ninguna prueba unitaria puede ya salir a la red.
 
 ### 2026-09-16 — Versión 0.3.1: licencias de los 30 datasets
 Origen: la compuerta G1 de cipa-extended, criterio (v). La evidencia, con las

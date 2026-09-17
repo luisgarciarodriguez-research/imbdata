@@ -18,6 +18,17 @@ credit_card_fraud:
   encoding: none  # all numeric (PCA-transformed)
   imputation: none  # no missing values
   notes: "PCA-transformed V1–V28. Only Time and Amount are original."
+  fraud:
+    time:
+      column: Time
+      unit: second
+      calendar: false
+      origin: first_transaction  # seconds elapsed since the first transaction
+    amount:
+      column: Amount
+    graph: null   # no counterparty identifiers are published
+    entity: null  # no cardholder or account identifier is published
+    synthetic: false
   license:
     name: DbCL 1.0
     spdx: DbCL-1.0
@@ -45,6 +56,20 @@ paysim:
   imputation: none
   temporal_column: step
   notes: "Synthetic. Only TRANSFER and CASH_OUT have fraud. step = temporal ordering."
+  fraud:
+    time:
+      column: step
+      unit: hour
+      calendar: false
+      origin: simulation_start  # 744 simulated hours, no calendar anchor
+    amount:
+      column: amount
+    graph:
+      kind: account
+      src: nameOrig
+      dst: nameDest
+    entity: nameOrig
+    synthetic: true
   license:
     name: CC BY-SA 4.0
     spdx: CC-BY-SA-4.0
@@ -71,6 +96,17 @@ ieee_cis_fraud:
   imputation: median  # high percentage of missing values
   temporal_column: TransactionDT
   notes: "Join Transaction + Identity on TransactionID. 434 features after join. High missingness."
+  fraud:
+    time:
+      column: TransactionDT
+      unit: second
+      calendar: false
+      origin: unpublished  # the reference date was never released by the organisers
+    amount:
+      column: TransactionAmt
+    graph: null   # no counterparty identifiers; card/addr surrogates are the consumer's choice
+    entity: null
+    synthetic: false
   license:
     name: Kaggle competition rules (IEEE-CIS / Vesta)
     spdx: null
@@ -102,6 +138,18 @@ elliptic_bitcoin:
   imputation: none
   temporal_column: time_step  # 49 timesteps
   notes: "Use only labeled nodes (46,564 of 203,769). Ignore graph structure for CIPA."
+  fraud:
+    time:
+      column: time_step
+      unit: step     # 49 two-week windows; not convertible to seconds
+      calendar: false
+      origin: unpublished
+    amount: null     # the anonymized features do not expose a transaction amount
+    graph:
+      kind: transaction
+      edges: elliptic_txs_edgelist.csv
+    entity: null
+    synthetic: false
   license:
     name: CC BY-NC-ND 4.0
     spdx: CC-BY-NC-ND-4.0
@@ -139,6 +187,59 @@ baf:
     notes: "Owner taken from the Kaggle dataset metadata (the uploading account); not
       cross-checked against an independent source."
     checked: "2026-09-16"
+
+saml_d:
+  domain: financial_fraud
+  status: new
+  source: kaggle
+  url: https://www.kaggle.com/datasets/berkanoztas/synthetic-transaction-monitoring-dataset-aml
+  filename: SAML-D.csv
+  target_column: Is_laundering
+  minority_value: 1
+  # Sender_account/Receiver_account are surrogate keys (same criterion as
+  # nameOrig/nameDest in paysim); Laundering_type is the typology, so it leaks
+  # the target (same criterion as attack_cat in unsw_nb15). Date and Time are
+  # consumed by the preprocessor into the numeric `timestamp` column.
+  features_drop: [Sender_account, Receiver_account, Laundering_type]
+  encoding:
+    type: onehot  # 13 + 13 + 18 + 18 + 7 levels; none exceeds 50
+    columns: [Payment_type, Payment_currency, Received_currency,
+              Sender_bank_location, Receiver_bank_location]
+  imputation: none  # no missing values in any column
+  temporal_column: timestamp  # Date + Time combined into Unix seconds (UTC)
+  notes: "Synthetic AML transaction monitoring data with 28 typologies (11 normal
+    and 17 suspicious) in Laundering_type, which is dropped as target leakage.
+    The Kaggle version is an updated version compared to the paper. No native
+    concept drift: any drift used with SAML-D is researcher-constructed."
+  license:
+    name: CC BY-NC-SA 4.0
+    spdx: CC-BY-NC-SA-4.0
+    status: declared
+    url: https://www.kaggle.com/datasets/berkanoztas/synthetic-transaction-monitoring-dataset-aml
+    restrictions: [non_commercial, share_alike]
+    cite: "Oztas et al. IEEE ICEBE 2023"
+    notes: "Owner taken from the Kaggle dataset metadata (the uploading account); not
+      cross-checked against an independent source. DOI 10.1109/ICEBE59045.2023.00028 as
+      given in the Kaggle description; not verified against Crossref."
+    checked: "2026-09-17"
+  fraud:
+    time:
+      column: timestamp      # derived by the reader from the raw Date and Time
+      source: [Date, Time]
+      unit: second
+      calendar: true
+      origin: unix_epoch     # absolute Unix seconds, read as UTC
+    amount:
+      column: Amount
+      currency: Payment_currency
+    graph:
+      kind: account
+      src: Sender_account
+      dst: Receiver_account
+    entity: Sender_account
+    synthetic: true
+    typology: Laundering_type
+    drift_provenance: researcher_constructed
 
 # ═══════════════════════════════════════════════════════════════
 # DOMAIN 2: MEDICINE & CLINICAL

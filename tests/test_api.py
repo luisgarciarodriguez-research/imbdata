@@ -14,7 +14,7 @@ Author:
     CVU: 905206 · ORCID: 0009-0004-9514-5508
 
 Project:
-    imbdata v0.3.1 — Imbalanced Classification Dataset Repository
+    imbdata v0.4.0 — Imbalanced Classification Dataset Repository
     Advisor: Dr. José Antonio Neme Castillo
     Research Group: Anomalocaris
 """
@@ -42,7 +42,7 @@ from .conftest import (
     requires_cached,
 )
 
-EXPECTED_DATASET_COUNT = 30
+EXPECTED_DATASET_COUNT = 31
 
 # Reference values from the PLAN.md dataset table. IR is checked only where the
 # table's figure was reproduced; svmguide1's is recorded in STATUS.md instead.
@@ -85,6 +85,7 @@ BATCH_B_ROWS = {
     "elliptic_bitcoin": 46564,
     "baf": 1000000,
     "vehicle_insurance_fraud": 15420,
+    "saml_d": 9504852,
 }
 
 BATCH_A_ROWS = {
@@ -105,7 +106,7 @@ BATCH_A_ROWS = {
 # ── Discovery ─────────────────────────────────────────────────────────
 
 def test_list_datasets_returns_the_full_registry() -> None:
-    """The public listing exposes all 30 registered datasets, sorted."""
+    """The public listing exposes all 31 registered datasets, sorted."""
     names = imbdata.list_datasets()
     assert len(names) == EXPECTED_DATASET_COUNT
     assert names == sorted(names)
@@ -119,6 +120,7 @@ def test_list_datasets_filters_by_domain() -> None:
         "elliptic_bitcoin",
         "ieee_cis_fraud",
         "paysim",
+        "saml_d",
     ]
 
 
@@ -172,7 +174,7 @@ def test_info_on_unknown_dataset_raises() -> None:
 
 
 def test_info_flags_every_registered_dataset_as_implemented() -> None:
-    """`is_implemented` is true across the registry now that all 30 have routines."""
+    """`is_implemented` is true across the registry now that all 31 have routines."""
     missing = [n for n in imbdata.list_datasets() if not imbdata.info(n)["is_implemented"]]
     assert missing == []
 
@@ -296,6 +298,29 @@ def test_elliptic_bitcoin_marks_illicit_as_the_minority() -> None:
     _, y = imbdata.load("elliptic_bitcoin")
     assert int(y.sum()) == 4545
     assert len(y) - int(y.sum()) == 42019
+
+
+@pytest.mark.slow
+@requires_cached("saml_d")
+def test_saml_d_matches_the_published_counts() -> None:
+    """The 9,873 laundering transactions of 9,504,852 reach the canonical frame.
+
+    The Kaggle description declares 9,504,852 transactions and 0.1039 %
+    suspicious, and the published file agrees (the inspection recorded in
+    STATUS.md). The typology and the surrogate account keys must not survive
+    into X, and the textual Date/Time must have become the numeric timestamp.
+    """
+    X, y = imbdata.load("saml_d")
+    assert len(y) == 9504852
+    assert int(y.sum()) == 9873
+    assert 100.0 * int(y.sum()) / len(y) == pytest.approx(0.1039, abs=5e-4)
+
+    assert "timestamp" in X.columns
+    assert X["timestamp"].is_monotonic_increasing
+    for leaked in ("Sender_account", "Receiver_account", "Laundering_type", "Date", "Time"):
+        assert leaked not in X.columns
+    # 2 numeric columns plus 13 + 13 + 18 + 18 + 7 one-hot indicators.
+    assert X.shape[1] == 71
 
 
 @requires_cached("tcga_brca")

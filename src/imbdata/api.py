@@ -19,7 +19,7 @@ Author:
     CVU: 905206 · ORCID: 0009-0004-9514-5508
 
 Project:
-    imbdata v0.3.1 — Imbalanced Classification Dataset Repository
+    imbdata v0.4.0 — Imbalanced Classification Dataset Repository
     Advisor: Dr. José Antonio Neme Castillo
     Research Group: Anomalocaris
 """
@@ -379,7 +379,8 @@ def list_datasets(domain: str | None = None) -> list[str]:
 
     Example:
         >>> list_datasets(domain="financial_fraud")
-        ['baf', 'credit_card_fraud', 'elliptic_bitcoin', 'ieee_cis_fraud', 'paysim']
+        ['baf', 'credit_card_fraud', 'elliptic_bitcoin', 'ieee_cis_fraud', 'paysim',
+         'saml_d']
     """
     return default_service().list_datasets(domain=domain)
 

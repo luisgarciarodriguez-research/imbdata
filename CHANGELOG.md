@@ -11,6 +11,101 @@ and upgrades would otherwise receive different rows without notice.
 `STATUS.md` carries the reasoning behind each decision; this file records what
 changed and which datasets it moves.
 
+## [0.4.0] — 2026-09-17
+
+Adds one dataset key and one new API surface. No existing dataset key changes
+the data it serves, and no existing SHA-256 changes.
+
+### Added
+
+- **`saml_d`** (SAML-D, synthetic AML transaction monitoring; Kaggle,
+  `berkanoztas/synthetic-transaction-monitoring-dataset-aml`), in the
+  `financial_fraud` domain: 9,504,852 transactions, 71 features, 9,873
+  laundering rows (IR 961.7:1). `Date` and `Time` fold into the numeric
+  `timestamp` column (Unix seconds, UTC, via the new
+  `combine_date_time_epoch`); the surrogate account keys and the
+  `Laundering_type` typology are dropped, the latter because it filters the
+  target; the five remaining categorical columns are one-hot encoded. Cited as
+  "Oztas et al. IEEE ICEBE 2023", licence CC BY-NC-SA 4.0. **No native concept
+  drift: any drift used with SAML-D is researcher-constructed.**
+- `ONEHOT_MAX_LEVELS` (50) and the cardinality split behind it: a declared
+  categorical above that many levels is ordinal-encoded instead, the criterion
+  that already justifies `ieee_cis_fraud`. No published SAML-D column reaches
+  it.
+
+- **`imbdata.fraud`**, an endpoint serving the per-row context the canonical
+  format cannot carry: `fraud.list_datasets()`, `fraud.info()`, `fraud.load()`,
+  `fraud.ensure()` and `fraud.verify()`, returning a frozen `FraudDataset`
+  (`name`, `X`, `y`, `context`, `nodes`, `edges`, `meta`). `X` and `y` are
+  exactly what `imbdata.load()` returns; `context` has one row per row of `X`,
+  in the same order, with a fixed ten-column schema (`t`, `t_seconds`,
+  `event_time`, `amount`, `currency`, `src_id`, `dst_id`, `entity_id`,
+  `node_id`, `typology`). A concept a dataset does not publish is an all-null
+  column, declared as such in its registry block, so one pipeline covers every
+  dataset.
+  Alignment is by construction: each served dataset's raw read step is now a
+  shared `_read_<key>` reader (`DatasetPreprocessor.read_raw`) feeding both the
+  canonical parquet and the context.
+- **An optional `fraud:` block in the registry**, declared for the five
+  datasets of the fraud study (`credit_card_fraud`, `paysim`,
+  `ieee_cis_fraud`, `elliptic_bitcoin`, `saml_d`): the native time column and
+  its unit (`second`, `hour` or `step`), whether that time is a calendar
+  instant, the amount and its currency, the graph (`account` or `transaction`),
+  the entity, `synthetic`, and optionally `typology` and `drift_provenance`.
+  `DatasetRegistry.validate()` checks its schema and enumerations;
+  `REQUIRED_FIELDS` is unchanged, so user registries without the block still
+  validate. New `DatasetRegistry.filter(fraud=True)` and `fraud_block()`.
+- **Elliptic's graph**, served whole: `nodes` holds all 203,769 nodes with
+  their label and their row in `X` (`<NA>` for the 157,205 unlabelled ones),
+  and `edges` all 234,355 edges, including those reaching unlabelled nodes.
+  Dropping them would cut the graph a consumer measures, while `X`, `y` and
+  `context` keep the 46,564 labelled rows.
+- **`NotAFraudDatasetError`**, raised when a registered dataset declares no
+  `fraud` block. An unknown key still raises `DatasetNotFoundError`.
+- **`imbdata fraud list|info|download`** on the command line, and
+  `StoreConfig.fraud_dir()`/`fraud_path()` for the artefact locations.
+- `combine_date_time_epoch`, `to_seconds` and `encode_accounts` as pure
+  functions, the last factorizing payer and payee over the sorted union of
+  their values so an account keeps one code on both sides, independent of row
+  order.
+
+### Changed
+
+- The registry grows from 30 to 31 entries, in the same 15 domains, so
+  `list_datasets()` returns 31 keys and
+  `list_datasets(domain="financial_fraud")` returns 6 instead of 5.
+- `DatasetPreprocessor` gained the shared readers (`read_raw`, `reader_for`,
+  `has_reader`, `read_elliptic_edges`) and the `_preprocess_*` routines of the
+  five fraud datasets now build on them. **The canonical parquet of all five is
+  byte-identical to 0.3.1**: rebuilt in a temporary store, the SHA-256 of
+  `credit_card_fraud`, `paysim`, `ieee_cis_fraud` and `elliptic_bitcoin`
+  matches the manifest exactly.
+
+### Storage
+
+- Context artefacts live in `<store>/processed/fraud/<key>.<part>.parquet` and
+  are recorded in the store's single `manifest.json` under the `fraud/`
+  namespace (`fraud/<key>.<part>`), with their digest, size, row count and
+  path. `imbdata.verify()` and `imbdata verify` therefore report exactly the
+  31 canonical datasets, before and after the artefacts exist; `fraud.verify()`
+  reports the artefacts. Like the canonical files they are immutable once
+  written and are only rebuilt on an explicit `force=True`.
+
+### Notes
+
+- **No existing dataset key changes the data it serves, and no existing
+  SHA-256 changes.** 0.4.0 is a minor bump because the set a key listing
+  returns changes, not the data.
+- `context['typology']` is derived from the label and must never be used as a
+  feature; the warning is in `FraudDataset`'s docstring and in PLAN.md.
+- What `imbdata` deliberately does not decide, because they are the consumer's
+  method: a surrogate entity for IEEE-CIS, currency conversion for SAML-D, the
+  temporal windows of PaySim and the ULB dataset, how to treat Elliptic's
+  unknown nodes, and any calendar anchor for the datasets whose origin was
+  never published.
+
+---
+
 ## [0.3.1] — 2026-09-16
 
 Metadata only: no dataset key changes the data it serves, and no SHA-256
@@ -110,6 +205,7 @@ download, deterministic preprocessing, SHA-256 verification and a single
 canonical format: `float64` features plus an `int64` `target` where `0` is the
 majority and `1` the minority, free of missing values and categorical columns.
 
+[0.4.0]: https://github.com/luisgarciarodriguez-research/imbdata/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/luisgarciarodriguez-research/imbdata/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/luisgarciarodriguez-research/imbdata/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/luisgarciarodriguez-research/imbdata/compare/v0.1.0...v0.2.0

@@ -7,7 +7,8 @@ Exposes the package's operations as the ``imbdata`` console script:
 * ``imbdata info KEY``               — show a dataset's metadata;
 * ``imbdata download KEY... | --all``— materialize datasets into the store;
 * ``imbdata verify [KEY...]``        — check cached files against the manifest;
-* ``imbdata status``                 — summarize the store's location and size.
+* ``imbdata status``                 — summarize the store's location and size;
+* ``imbdata fraud list|info|download``— the fraud endpoint's per-row context.
 
 The subcommands are methods of :class:`CLI`, which owns the argument parser and
 the :class:`~imbdata.api.DatasetService` they operate on.
@@ -19,7 +20,7 @@ Author:
     CVU: 905206 · ORCID: 0009-0004-9514-5508
 
 Project:
-    imbdata v0.3.1 — Imbalanced Classification Dataset Repository
+    imbdata v0.4.0 — Imbalanced Classification Dataset Repository
     Advisor: Dr. José Antonio Neme Castillo
     Research Group: Anomalocaris
 """
@@ -35,6 +36,7 @@ from typing import Sequence
 from imbdata import __version__
 from imbdata.api import DatasetService
 from imbdata.exceptions import ImbdataError
+from imbdata.fraud import FraudService
 from imbdata.verify import STATUS_OK
 
 logger = logging.getLogger(__name__)
@@ -57,14 +59,25 @@ class CLI:
         0
     """
 
-    def __init__(self, service: DatasetService | None = None) -> None:
+    def __init__(
+        self,
+        service: DatasetService | None = None,
+        fraud_service: FraudService | None = None,
+    ) -> None:
         """Initialize the CLI.
 
         Args:
             service: Dataset service to operate on. Defaults to a new service
                 bound to the resolved data store.
+            fraud_service: Service backing the ``fraud`` subcommand. Defaults
+                to one sharing this CLI's store and registry.
         """
         self.service = service if service is not None else DatasetService()
+        self.fraud_service = fraud_service if fraud_service is not None else FraudService(
+            config=self.service.config,
+            registry=self.service.registry,
+            datasets=self.service,
+        )
         self.parser = self.build_parser()
 
     # ── Parser ─────────────────────────────────────────────────────────
@@ -117,6 +130,24 @@ class CLI:
         verification.add_argument("names", nargs="*", help="dataset keys (default: all)")
 
         subparsers.add_parser("status", help="show the store path, size, and contents")
+
+        fraud = subparsers.add_parser(
+            "fraud", help="per-row fraud context (time, amount, graph, typology)"
+        )
+        fraud_commands = fraud.add_subparsers(dest="fraud_command", metavar="SUBCOMMAND")
+        fraud_commands.add_parser("list", help="list the datasets the endpoint serves")
+        fraud_info = fraud_commands.add_parser("info", help="show a served dataset's block")
+        fraud_info.add_argument("name", help="dataset key")
+        fraud_download = fraud_commands.add_parser(
+            "download", help="build the context artefacts into the store"
+        )
+        fraud_download.add_argument("names", nargs="*", help="dataset keys")
+        fraud_download.add_argument(
+            "--all", action="store_true", help="build every served dataset"
+        )
+        fraud_download.add_argument(
+            "--force", action="store_true", help="rebuild artefacts that are already cached"
+        )
         return parser
 
     # ── Entry point ────────────────────────────────────────────────────
@@ -256,6 +287,96 @@ class CLI:
         checked = [s for s in report.values() if s != "MISSING"]
         print(f"\n{sum(s == STATUS_OK for s in checked)}/{len(checked)} cached dataset(s) OK")
         return EXIT_ERROR if mismatches else EXIT_OK
+
+    def cmd_fraud(self, args: argparse.Namespace) -> int:
+        """Dispatch the ``fraud`` subcommand.
+
+        Args:
+            args: Parsed arguments carrying ``fraud_command`` and its options.
+
+        Returns:
+            The process exit code.
+        """
+        handlers = {
+            "list": self._fraud_list,
+            "info": self._fraud_info,
+            "download": self._fraud_download,
+        }
+        handler = handlers.get(args.fraud_command)
+        if handler is None:
+            print("error: use `imbdata fraud list|info|download`", file=sys.stderr)
+            return EXIT_ERROR
+        return handler(args)
+
+    def _fraud_list(self, args: argparse.Namespace) -> int:
+        """Print the datasets the fraud endpoint serves, with their artefacts.
+
+        Args:
+            args: Parsed arguments; none are read.
+
+        Returns:
+            The process exit code.
+        """
+        names = self.fraud_service.list_datasets()
+        width = max(len(name) for name in names)
+        for name in names:
+            meta = self.fraud_service.registry.get(name)
+            parts = self.fraud_service.store.parts_of(name, meta)
+            cached = "cached" if self.fraud_service.store.has_all(name, meta) else "-"
+            print(f"{name:<{width}}  {'+'.join(parts):<21} {cached}")
+        print(f"\n{len(names)} fraud dataset(s)")
+        return EXIT_OK
+
+    def _fraud_info(self, args: argparse.Namespace) -> int:
+        """Print a served dataset's metadata, fraud block included.
+
+        Args:
+            args: Parsed arguments carrying ``name``.
+
+        Returns:
+            The process exit code.
+        """
+        details = self.fraud_service.info(args.name)
+        lines: list[tuple[str, object]] = []
+        for key, value in details.items():
+            if isinstance(value, dict):
+                for field, item in value.items():
+                    if isinstance(item, dict):
+                        lines.extend(
+                            (f"{key}.{field}.{inner}", leaf) for inner, leaf in item.items()
+                        )
+                    else:
+                        lines.append((f"{key}.{field}", item))
+            else:
+                lines.append((key, value))
+        width = max(len(key) for key, _ in lines)
+        for key, value in lines:
+            print(f"{key:<{width}} : {value}")
+        return EXIT_OK
+
+    def _fraud_download(self, args: argparse.Namespace) -> int:
+        """Build the requested datasets' context artefacts.
+
+        Args:
+            args: Parsed arguments carrying ``names``, ``all``, and ``force``.
+
+        Returns:
+            ``0`` when every requested dataset succeeded, ``1`` otherwise.
+        """
+        names = self.fraud_service.list_datasets() if args.all else list(args.names)
+        if not names:
+            print("error: give dataset keys or --all", file=sys.stderr)
+            return EXIT_ERROR
+
+        results = self.fraud_service.ensure(names, force=args.force)
+        width = max(len(name) for name in results)
+        failures = 0
+        for name, outcome in results.items():
+            marker = "x" if outcome.startswith("ERROR") else "OK"
+            failures += outcome.startswith("ERROR")
+            print(f"[{marker}] {name:<{width}}  {outcome}")
+        print(f"\n{len(results) - failures}/{len(results)} context(s) ready")
+        return EXIT_ERROR if failures else EXIT_OK
 
     def cmd_status(self, args: argparse.Namespace) -> int:
         """Print the store location, its size, and how much is materialized.

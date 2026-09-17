@@ -12,7 +12,7 @@ Author:
     CVU: 905206 · ORCID: 0009-0004-9514-5508
 
 Project:
-    imbdata v0.3.1 — Imbalanced Classification Dataset Repository
+    imbdata v0.4.0 — Imbalanced Classification Dataset Repository
     Advisor: Dr. José Antonio Neme Castillo
     Research Group: Anomalocaris
 """
@@ -27,7 +27,10 @@ from imbdata import __version__
 from imbdata.api import DatasetService
 from imbdata.cli import EXIT_ERROR, EXIT_OK, CLI, main
 from imbdata.config import StoreConfig
+from imbdata.fraud import FraudService
 from imbdata.registry import DatasetRegistry
+
+from .conftest import FRAUD_DATASETS, OfflineDownloadManager
 
 
 @pytest.fixture()
@@ -52,7 +55,7 @@ def test_no_command_prints_help(cli: CLI, capsys: pytest.CaptureFixture[str]) ->
 def test_list_prints_every_dataset(cli: CLI, capsys: pytest.CaptureFixture[str]) -> None:
     """`imbdata list` reports the full registry count."""
     assert cli.run(["list"]) == EXIT_OK
-    assert "30 dataset(s)" in capsys.readouterr().out
+    assert "31 dataset(s)" in capsys.readouterr().out
 
 
 def test_list_filters_by_domain(cli: CLI, capsys: pytest.CaptureFixture[str]) -> None:
@@ -133,7 +136,7 @@ def test_status_reports_the_store_location(
     assert cli.run(["status"]) == EXIT_OK
     output = capsys.readouterr().out
     assert str(temp_store.store_path()) in output
-    assert "registered   : 30 dataset(s)" in output
+    assert "registered   : 31 dataset(s)" in output
 
 
 def test_version_flag_exits_cleanly(capsys: pytest.CaptureFixture[str]) -> None:
@@ -173,3 +176,102 @@ def test_human_readable_sizes_use_binary_units() -> None:
     assert CLI._human(0) == "0.0 B"
     assert CLI._human(1536) == "1.5 KiB"
     assert CLI._human(5 * 1024 ** 3) == "5.0 GiB"
+
+
+# ── The `fraud` subcommand (0.4.0) ────────────────────────────────────
+
+@pytest.fixture()
+def fraud_cli(fraud_raw_store: StoreConfig) -> CLI:
+    """Return a CLI whose fraud endpoint reads the synthetic temporary store.
+
+    Args:
+        fraud_raw_store: Temporary store holding synthetic raw fixtures.
+
+    Returns:
+        A CLI that can build the fraud artefacts without any network access.
+    """
+    downloader = OfflineDownloadManager(fraud_raw_store)
+    service = DatasetService(config=fraud_raw_store, downloader=downloader)
+    return CLI(
+        service=service,
+        fraud_service=FraudService(
+            config=fraud_raw_store, datasets=service, downloader=downloader
+        ),
+    )
+
+
+def test_fraud_list_reports_the_served_datasets(
+    fraud_cli: CLI, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`imbdata fraud list` names the five datasets and their artefacts."""
+    assert fraud_cli.run(["fraud", "list"]) == EXIT_OK
+    output = capsys.readouterr().out
+    assert "5 fraud dataset(s)" in output
+    for name in FRAUD_DATASETS:
+        assert name in output
+    assert "context+nodes+edges" in output   # elliptic_bitcoin
+    assert "spambase" not in output
+
+
+def test_fraud_info_prints_the_nested_block(
+    fraud_cli: CLI, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`imbdata fraud info` flattens the fraud block into dotted keys."""
+    assert fraud_cli.run(["fraud", "info", "saml_d"]) == EXIT_OK
+    output = capsys.readouterr().out
+    assert "fraud.time.unit" in output
+    assert "fraud.time.calendar" in output
+    provenance = [line for line in output.splitlines() if "drift_provenance" in line]
+    assert provenance and provenance[0].split(":")[-1].strip() == "researcher_constructed"
+
+
+def test_fraud_info_on_a_non_fraud_dataset_fails(
+    fraud_cli: CLI, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A dataset without a `fraud:` block exits with an error."""
+    assert fraud_cli.run(["fraud", "info", "spambase"]) == EXIT_ERROR
+    assert "fraud block" in capsys.readouterr().err
+
+
+def test_fraud_download_builds_the_requested_context(
+    fraud_cli: CLI, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`imbdata fraud download KEY` materializes that dataset's artefacts."""
+    assert fraud_cli.run(["fraud", "download", "credit_card_fraud"]) == EXIT_OK
+    output = capsys.readouterr().out
+    assert "1/1 context(s) ready" in output
+    assert fraud_cli.fraud_service.store.path("credit_card_fraud", "context").is_file()
+
+
+def test_fraud_download_all_builds_every_dataset(
+    fraud_cli: CLI, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`--all` covers the whole endpoint."""
+    assert fraud_cli.run(["fraud", "download", "--all"]) == EXIT_OK
+    assert "5/5 context(s) ready" in capsys.readouterr().out
+
+
+def test_fraud_download_without_arguments_errors(
+    fraud_cli: CLI, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Neither keys nor `--all` is a usage error."""
+    assert fraud_cli.run(["fraud", "download"]) == EXIT_ERROR
+    assert "give dataset keys or --all" in capsys.readouterr().err
+
+
+def test_fraud_without_a_subcommand_errors(
+    fraud_cli: CLI, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`imbdata fraud` alone points at the three subcommands."""
+    assert fraud_cli.run(["fraud"]) == EXIT_ERROR
+    assert "fraud list|info|download" in capsys.readouterr().err
+
+
+def test_fraud_download_reports_a_failure(
+    fraud_cli: CLI, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A dataset whose raw files are gone is reported, and the exit code is 1."""
+    for path in fraud_cli.fraud_service.config.raw_dir("saml_d").glob("*"):
+        path.unlink()
+    assert fraud_cli.run(["fraud", "download", "saml_d"]) == EXIT_ERROR
+    assert "0/1 context(s) ready" in capsys.readouterr().out
