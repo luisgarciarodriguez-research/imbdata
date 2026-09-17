@@ -1,15 +1,18 @@
 # STATUS — imbdata
 
-## Último reporte: 2026-09-14 21:24
+## Último reporte: 2026-09-16 — Fase B cerrada en cipa-extended
 
 ### Estado actual
-- Fase: Fase A de ampliación del registro **completa** (A1 y A2); A3 pospuesta
+- Fase: Fase A de ampliación del registro **completa y publicada** (A1 y A2,
+  tag `v0.3.0` en origin); A3 pospuesta; Fase B en cipa-extended **completa**
+  (`c2d43e0`, 2026-09-15)
 - Módulos: 9/9 implementados
 - Tests: **225 pasando** en la corrida rápida (~3 s) + **19 marcados `slow`** (244 en total)
 - Datasets: **30/30 funcionales**, 15 dominios
 - Store: ~13 GB en `~/.imbdata`
 - Versión: **0.3.0** (ver `CHANGELOG.md`)
-- Bloqueantes: **ninguno**
+- Bloqueantes: **ninguno**. cipa-extended fija `imbdata>=0.3,<0.4` y su contrato
+  de datos está congelado contra 0.3.0
 - Salvedad conocida: `seu_gearbox` no reproduce bit a bit entre versiones
   mayores de numpy (ver "Reproducibilidad entre versiones de numpy")
 
@@ -306,13 +309,19 @@ miles de niveles.
    - ~~`tcga_brca`: divergencia con COMIA~~ → resuelta el 2026-09-09.
 2. EDA en el repositorio de CIPA Extended (decidido: no va en repo aparte; el
    control de calidad del dato sí baja a imbdata).
-3. Handoff al proyecto nuevo de CIPA Extended:
-   `pip install -e /home/luisgarcia/projects/unam/dcic/2027-1/imbdata`.
-4. **Pendiente: partición oficial de `nsl_kdd`** (A3, pospuesta el 2026-09-14).
+3. Instalación: imbdata 0.3.0 está instalado en el `base` de conda como copia
+   normal, **no editable** (`direct_url.json` sin `editable`; verificado el
+   2026-09-16). Es el que usa cipa-extended, y los cambios en `src/` no le llegan
+   hasta reinstalar. Las pruebas de desarrollo se corren con `.venv/bin/python`,
+   que sí es editable. Para otros entornos o proyectos que quieran versión fija:
+   `pip install "imbdata @ git+ssh://git@github.com/luisgarciarodriguez-research/imbdata.git@v0.3.0"`.
+4. ~~Fase B en cipa-extended~~ → completa el 2026-09-15 (`c2d43e0`). Ver el
+   Historial de 2026-09-16.
+5. **Pendiente: partición oficial de `nsl_kdd`** (A3, pospuesta el 2026-09-14).
    Exponer `KDDTest+` como variante con ataque=1 viola el contrato canónico,
-   porque ahí los ataques son mayoría. Ver el Historial de esa fecha.
-5. Fase B en cipa-extended: pin `imbdata>=0.3,<0.4`, `EXPECTED_DATASETS = 30`,
-   `make update-contract` (el diff debe mostrar solo las dos claves nuevas).
+   porque ahí los ataques son mayoría. Decidirla junto con la compuerta G1 y,
+   por el mismo criterio, la partición `sat.trn`/`sat.tst` de `satimage`.
+   Ver el Historial de esa fecha.
 
 ### Notas de implementación
 - **Entorno:** se creó `.venv` en la raíz. El entorno conda `base` tiene
@@ -336,6 +345,30 @@ miles de niveles.
 ---
 
 ## Historial
+
+### 2026-09-16 — Fase B cerrada en cipa-extended
+La entrada anterior la daba por «sin empezar», pero cipa-extended adoptó 0.3.0
+el 2026-09-15 en `c2d43e0`: pin `imbdata>=0.3,<0.4`, `EXPECTED_DATASETS = 30`
+y el contrato vuelto a congelar. El diff del contrato mostró exactamente lo
+previsto: `imbdata_version` 0.2.0 → 0.3.0, dos claves nuevas y ningún campo
+cambiado en las 28 anteriores, ni un SHA-256. Así quedó demostrado que el
+release fue aditivo, no solo supuesto.
+
+Corrige además una premisa de la entrada anterior: el pin `<0.3` nunca rompió
+la dependencia. Un `cipa_extended.egg-info/` viejo en la raíz de ese repo tapaba
+los metadatos correctos y declaraba `imbdata` sin especificador, así que el pin
+no llegaba a aplicarse. El que vigilaba de verdad era el contrato. Se borró ese
+directorio y ahora la dependencia resuelve a `imbdata<0.4,>=0.3`.
+
+### 2026-09-14 22:41 — Cierre de sesión
+Publicados en origin el release 0.3.0 (`83e4348`, tag `v0.3.0`) y el ajuste de
+documentación (`2746d2b`): el README ya no exige `numpy<2.0`, documenta la
+variante `ozone_level__eighthr` y STATUS.md trae los conteos de tests de 0.3.0
+(244). imbdata 0.3.0 quedó reinstalado en el `base` de conda, así que los
+metadatos también reportan 0.3.0. Se dejó en cipa-extended el informe
+`imbdata_phase_b_handoff.md` para ejecutar la Fase B; ese repo no se modificó
+de ninguna otra forma (último commit `2ab006a`). Queda abierta la decisión de A3.
+
 
 ### 2026-09-14 21:24 — Versión 0.3.0: `wine_quality_white` y `satimage` (30/30, 15 dominios)
 Fase A de la preparación de la compuerta G1 de CIPA Extended. Dos altas
