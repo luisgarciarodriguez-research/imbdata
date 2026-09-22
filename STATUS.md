@@ -1,6 +1,9 @@
 # STATUS — imbdata
 
 ## Último reporte: 2026-09-17 — Versión 0.4.0: `saml_d` y el endpoint de fraude
+> Revisión 2026-09-21: `main` = `origin/main` (`d66aee9`), árbol limpio; 301
+> tests pasando en la corrida rápida. `base` tiene 0.4.0 **editable** y
+> `pip check` reporta el conflicto con el pin `<0.4` de cipa-extended.
 
 ### Estado actual
 - Fase: **0.4.0 completa** — Parte A (`saml_d`) y Parte B (endpoint
@@ -10,8 +13,8 @@
 - Datasets: **31/31 funcionales**, 15 dominios; **5/5** en el endpoint de fraude
 - Store: ~13 GB en `~/.imbdata` (+118 MB del parquet de `saml_d`, +951 MB de su
   CSV crudo, +420 MB de los 7 artefactos de contexto)
-- Versión: **0.4.0** preparada (ver `CHANGELOG.md`); **sin commit ni tag**, como
-  pidió la guía `imbdata_0.4.0_handoff.md`. El mensaje está en `commit_message.txt`
+- Versión: **0.4.0** publicada (ver `CHANGELOG.md`): commit `9260984`, tag
+  `v0.4.0`, en `origin/main`. La guía quedó en `docs/imbdata_0.4.0_handoff.md`
 - Licencias: bloque `license` en las 31 entradas, expuesto por `info()`
 - Bloqueantes: **ninguno**
 - ⚠️ **0.4.0 rompe el pin `imbdata>=0.3,<0.4` de cipa-extended** y cambia sus
@@ -315,16 +318,18 @@ de forma ordinal, no one-hot, porque `DeviceInfo` y los dominios de email suman
 miles de niveles.
 
 ### Siguientes pasos
-1. **0.4.0 sin publicar:** falta el commit y el tag `v0.4.0`. La guía pidió
-   dejar el mensaje en `commit_message.txt` y no commitear sin instrucción
-   explícita del autor. Al publicar, el informe
-   `imbdata_0.4.0_impacto_cipa_extended.md` necesita el hash del commit en su §1.
-2. **cipa-extended, al recibir el informe:** mover el pin `imbdata>=0.3,<0.4`,
+1. ~~**0.4.0 sin publicar**~~ → publicada el 2026-09-17 (commit `9260984`, tag
+   `v0.4.0`); el §1 del informe de impacto ya lleva el hash. ~~Falta llevar
+   el informe a `cipa-extended`~~ → ya está en su raíz (sin versionar allá).
+2. **cipa-extended (pendiente al 2026-09-21; el pin sigue en `<0.4` y su
+   último commit es `018682a`, recongelado contra 0.3.1):** mover el pin `imbdata>=0.3,<0.4`,
    decidir si recongela `configs/data_contract.yaml`, actualizar el comentario
    `intra_domain_focus: financial_fraud  # 5 datasets` y decidir si `saml_d`
    entra al estudio (y si pasa por G1 y por la EDA). Instalar 0.4.0 en el `base`
-   deja esa versión para todos los proyectos que lo comparten.
-3. **`taxonomy-digital-fraud`, después:** `environment.yml` con
+   deja esa versión para todos los proyectos que lo comparten — **ya ocurrió**
+   (ver punto 7).
+3. **`taxonomy-digital-fraud`, después (sin empezar al 2026-09-21: el repo no
+   tiene commits ni menciona imbdata en `environment.yml`):** `environment.yml` con
    `imbdata>=0.4,<0.5` y `src/utils/loaders.py` como envoltorios delgados sobre
    `imbdata.fraud.load`.
 4. **Fuera de alcance de 0.4.0, por si se retoma:** `baf` (financial_fraud) y
@@ -338,11 +343,11 @@ miles de niveles.
    - ~~`tcga_brca`: divergencia con COMIA~~ → resuelta el 2026-09-09.
 6. EDA en el repositorio de CIPA Extended (decidido: no va en repo aparte; el
    control de calidad del dato sí baja a imbdata).
-7. Instalación: imbdata 0.3.0 está instalado en el `base` de conda como copia
-   normal, **no editable** (`direct_url.json` sin `editable`; verificado el
-   2026-09-16). Es el que usa cipa-extended, y los cambios en `src/` no le llegan
-   hasta reinstalar. Las pruebas de desarrollo se corren con `.venv/bin/python`,
-   que sí es editable. Para otros entornos o proyectos que quieran versión fija:
+7. Instalación: el `base` de conda tiene imbdata **0.4.0 editable** apuntando a
+   este repo (`direct_url.json` con `editable: true`; verificado el 2026-09-21).
+   Es el que usa cipa-extended, así que cualquier cambio en `src/` le llega de
+   inmediato, y su pin `<0.4` queda violado (`pip check`). Hasta el 2026-09-16
+   era 0.3.0 no editable. `.venv/bin/python` también es editable. Para otros entornos o proyectos que quieran versión fija:
    `pip install "imbdata @ git+ssh://git@github.com/luisgarciarodriguez-research/imbdata.git@v0.3.0"`.
 8. ~~Fase B en cipa-extended~~ → completa el 2026-09-15 (`c2d43e0`). Ver el
    Historial de 2026-09-16.
@@ -399,7 +404,7 @@ miles de niveles.
 
 ### 2026-09-17 — Versión 0.4.0, Parte A: `saml_d` (31/31)
 Origen: `taxonomy-digital-fraud`, tarea TAX-A-003, y la guía
-`imbdata_0.4.0_handoff.md`. Los cinco datasets de fraude de la taxonomía
+`docs/imbdata_0.4.0_handoff.md`. Los cinco datasets de fraude de la taxonomía
 (D-TAX-5) se sirven desde imbdata, y SAML-D no estaba en el registro.
 
 **A0 — inspección del CSV crudo** (996,168,850 B, el tamaño que declara Kaggle):
